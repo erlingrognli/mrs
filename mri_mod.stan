@@ -116,9 +116,8 @@ data{
   int<lower=1> n_beta;
   int<lower=1> n_area;
   array [n_obs] int ind_id;   // index of subjects
-  array [n_obs] int ind_beta_ocd; // index of regression coefficients
   array [n_obs] int ind_area; // index of brain areas
-  array [n_obs] int ind_gender; // index of subject genders
+  matrix [n_obs, n_beta] ind_pred; // predictor variable matrix
   vector[n_obs] mri; // mri measurements, sorted by subject
   vector[n_obs] age;
   // input data for controlling spline function
@@ -133,12 +132,12 @@ transformed data{
 	array[n_obs] int age_pos_knots= spline_findpos(age_knots, age);
 }
 parameters{
+  real alpha;
   vector[n_knots] knot_values;
   vector[N] id_icpt;
   real<lower=0> var_area_icpt;
-  vector[n_area] area_icpt;
-  vector[n_beta] beta_ocd;
-  vector[2] beta_gender;
+  ordered[n_area] area_icpt;
+  vector[n_beta] beta;
   real<lower=0> sigma;
 }
 transformed parameters{
@@ -149,35 +148,37 @@ model{
   vector[n_obs] mri_mod;
   
   // priors
-  knot_values ~ normal(-1,1);
-  id_icpt ~ normal(-1,1);
+  alpha ~ normal(0,10);
+  knot_values ~ normal(0,10);
+  id_icpt ~ normal(0,10);
   area_icpt ~ normal(0, var_area_icpt);
-  var_area_icpt ~ student_t(3,0,1);
-  beta_ocd ~ normal(-1,1); 
-  beta_gender ~ normal(-1,1);
+  var_area_icpt ~ student_t(3,0,10);
+  beta ~ normal(0,10);
   sigma ~ student_t(3,0,1);
   
   // compute model predictions combining age spline, varying effects of 
   // brain area and individual, and regression coefficients
+
   mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) .*
-             
+  
              area_icpt[ind_area] .* id_icpt[ind_id] + 
              
-             beta_ocd[ind_beta_ocd] + beta_gender[ind_gender]; //need to change this - identifiability problem
+             ind_pred * beta;
   
-  // likelihood
-  log_mri ~ normal(mri_mod, sigma); 
+  log_mri ~ normal(mri_mod, sigma); // likelihood
 }
 generated quantities{
   array [n_obs] real ppc;
   vector[N] log_lik;
   vector[n_obs] mri_mod;
   
-  mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
-            
-            area_icpt[ind_area] + id_icpt[ind_id] + 
-            
-            beta_ocd[ind_beta_ocd] + beta_gender[ind_gender];
+   mri_mod = rep_vector(alpha, n_obs) + 
+   
+             spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+             
+             area_icpt[ind_area] + id_icpt[ind_id] + 
+             
+             ind_pred * beta;
   
   ppc = normal_rng(mri_mod, rep_array(sigma, n_obs)); 
   
