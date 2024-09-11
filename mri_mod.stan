@@ -136,13 +136,14 @@ parameters{
   vector[n_knots] knot_values;
   vector[N] id_icpt;
   real<lower=0> var_area_icpt;
-  ordered[n_area] area_icpt;
+  vector[n_area - 1] area_icpt_raw;
   vector[n_beta] beta;
   real<lower=0> sigma;
 }
 transformed parameters{
 	// these are the spline coefficients corresponding to the current model
 	vector[n_knots] spl_coeffs = spline_getcoeffs(age_knots, knot_values);
+  vector[n_area] area_icpt = append_row(area_icpt_raw, zeros_vector(1));
 }
 model{
   vector[n_obs] mri_mod;
@@ -159,9 +160,9 @@ model{
   // compute model predictions combining age spline, varying effects of 
   // brain area and individual, and regression coefficients
 
-  mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) .*
+  mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
   
-             area_icpt[ind_area] .* id_icpt[ind_id] + 
+             area_icpt[ind_area] + id_icpt[ind_id] + 
              
              ind_pred * beta;
   

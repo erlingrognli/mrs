@@ -28,3 +28,16 @@ pr <- prior('normal(0, 5)', 'b')
 
 fit <- brm(mod, data = d, prior = pr)
 
+d <- readRDS('synth_data.rds')
+
+d <- d$syn
+
+d <- mutate(d, id = 1:nrow(d)) %>%
+  
+  pivot_longer(cols = !c(id, gender, age, ocd, scz), 
+               names_to = 'area_name', 
+               values_to = 'mri')
+  
+  
+
+
