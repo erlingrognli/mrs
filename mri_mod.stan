@@ -132,7 +132,6 @@ transformed data{
 	array[n_obs] int age_pos_knots= spline_findpos(age_knots, age);
 }
 parameters{
-  real alpha;
   vector[n_knots] knot_values;
   vector[N] id_icpt;
   real<lower=0> var_area_icpt;
@@ -149,12 +148,11 @@ model{
   vector[n_obs] mri_mod;
   
   // priors
-  alpha ~ normal(0,10);
-  knot_values ~ normal(0,10);
-  id_icpt ~ normal(0,10);
-  area_icpt ~ normal(0, var_area_icpt);
-  var_area_icpt ~ student_t(3,0,10);
-  beta ~ normal(0,10);
+  knot_values ~ normal(0,1);
+  id_icpt ~ normal(0,1);
+  area_icpt_raw ~ normal(0, var_area_icpt);
+  var_area_icpt ~ student_t(3,0,3);
+  beta ~ normal(0,2);
   sigma ~ student_t(3,0,1);
   
   // compute model predictions combining age spline, varying effects of 
@@ -173,9 +171,7 @@ generated quantities{
   vector[N] log_lik;
   vector[n_obs] mri_mod;
   
-   mri_mod = rep_vector(alpha, n_obs) + 
-   
-             spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+   mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
              
              area_icpt[ind_area] + id_icpt[ind_id] + 
              
