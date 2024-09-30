@@ -17,7 +17,7 @@ ocd_demog$MR4K.Nr <- gsub(pattern = " ok", replacement = '', x = ocd_demog$MR4K.
 
 ocd_demog <- mutate(ocd_demog, 
                     birth_date = as.Date(F.dt, format = '%d.%m.%Y'),
-                    gender = ifelse(K.nn == 'F', 1, 2),
+                    female = ifelse(K.nn == 'F', 1, 0),
                     SubjID = MR4K.Nr,
                     ocd = 1,
                     scz = 0,
@@ -34,7 +34,7 @@ hc_demog <- select(hc_demog, c(MR4K.Nr, F.dt, K.nn)) %>%
   
   mutate(SubjID = MR4K.Nr, 
          birth_date = as.Date(F.dt, format = '%d.%m.%Y'),
-         gender = ifelse(K.nn == 'J', 1, 2),
+         female = ifelse(K.nn == 'J', 1, 0),
          ocd = 0,
          scz = 0,
          .keep = 'none')
@@ -74,7 +74,7 @@ ocd_ytop <-
     mutate(
       filter(ocd_ytop, is.na(Age) == F),
       age = Age,
-      gender = ifelse(Sex == 'Female', 1, 2),
+      female = ifelse(Sex == 'Female', 1, 0),
       ocd = 0,
       scz = 0,
       .keep = 'unused'))
@@ -86,7 +86,7 @@ write_csv(ocd_ytop, file = '~/mrs_data/mrs_wf_data.csv')
 write.csv(
     
   pivot_longer(ocd_ytop,
-    cols = !c(SubjID, gender, age, ocd, scz), 
+    cols = !c(SubjID, female, age, ocd, scz), 
     names_to = 'area_name', 
     values_to = 'mri'),
   

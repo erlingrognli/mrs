@@ -19,3 +19,5 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
 d_syn <- syn(d)
 
 d <- d_syn$syn
+
+saveRDS(d, 'synth_data.rds')

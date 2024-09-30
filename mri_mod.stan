@@ -151,9 +151,9 @@ model{
   knot_values ~ normal(0,1);
   id_icpt ~ normal(0,1);
   area_icpt_raw ~ normal(0, var_area_icpt);
-  var_area_icpt ~ student_t(3,0,3);
-  beta ~ normal(0,2);
-  sigma ~ student_t(3,0,1);
+  var_area_icpt ~ student_t(4,0,2);
+  beta ~ normal(0,1);
+  sigma ~ student_t(4,0,2);
   
   // compute model predictions combining age spline, varying effects of 
   // brain area and individual, and regression coefficients

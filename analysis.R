@@ -31,7 +31,7 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
          rh_vPFC_area = rh_lateralorbitofrontal_area + rh_medialorbitofrontal_area,
          .keep = 'unused') %>%
   
-  pivot_longer(cols = !c(id, gender, age, ocd, scz), 
+  pivot_longer(cols = !c(id, female, age, ocd, scz), 
                names_to = 'area_name', 
                values_to = 'mri') %>%
   
@@ -45,14 +45,13 @@ d <- mutate(d, ind_area =
             .keep = 'all')
 
 ind_pred <- mutate(d, 
-                   gender = ifelse(gender == 1, -.5, .5),
+                   #female = female,
                    vpfc_area_ocd = ifelse(area_name %in% vPFC_area & ocd == 1, 1, 0),
                    vpfc_thickness_ocd = ifelse(area_name %in% vPFC_thickness & ocd == 1, 1, 0),
                    caudate_ocd = ifelse(area_name %in% caudate & ocd == 1, 1, 0),
-                   occipital_area_ocd = ifelse(area_name %in% occipital_area & ocd == 1, 1, 0),
                    .keep = 'none')
 
-ggplot(data = d,
+ggplot(data = filter(d, ind_area == 1),
        mapping = aes(age, log(mri))) +
   geom_point() + 
   geom_smooth()
@@ -75,7 +74,21 @@ dat <- list(N = length(unique(d$id)),
       
 m <- cmdstan_model('mri_mod.stan')
 
-fit <- m$sample(data = dat)
+fit <- m$sample(data = dat, 
+                       iter_warmup = 500,
+                       iter_sampling = 500)
+
+loo_output <- fit$loo(moment_match = TRUE)
+
+pareto_k <- loo_output[['diagnostics']][['pareto_k']]
+
+wide_d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
+                     show_col_types = F) %>%
+  
+  filter(is.na(age) == F) 
+
+bad_k <- filter(wide_d, pareto_k > .7) # not immediately clear why these are problematic/influential
+
 
 png(file = 'pairs.png',
     width = 45,
@@ -83,7 +96,7 @@ png(file = 'pairs.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(variables = c('area_icpt', 'beta', 'knot_values', 'alpha')))
+mcmc_pairs(fit$draws(variables = c('area_icpt', 'beta', 'knot_values')))
 
 dev.off()
 
@@ -96,10 +109,35 @@ ppc_violin_grouped(y = log(d$mri),
 
 ppc_pit_ecdf(y = log(d$mri), yrep = ppc_draws)
 
+# overall adequate fit
+
+# PPC plot of vPFC area separately for ocd and controls
+
+ppc_violin_grouped(y = log(d$mri[which(d$ind_area==3)]),
+                   yrep = ppc_draws[,which(d$ind_area==3)],
+                   group = d$ocd[which(d$ind_area==3)],
+                   y_draw = 'both')
+
+
+ppc_violin_grouped(y = log(d$mri[which(d$ind_area!=1)]),
+                   yrep = ppc_draws[,which(d$ind_area!=1)],
+                   group = d$female[which(d$ind_area!=1)],
+                   y_draw = 'both')
+
+
+
+# there is something going on here, in the lower tail for the ocd patients
+
+fit$init_model_methods()
+
+betas <- fit$draws(variables = 'beta')
+
 betas <- summarise_draws(fit$draws(variables = c('beta', 'sigma')))
+
+mcmc_areas(fit$draws(variables = 'beta'))
 
 areas <- summarise_draws(fit$draws(variables = c('area_icpt', 'var_area_icpt')))
 
 ages <- summarise_draws(fit$draws(variables = c('knot_values')))
 
-
+exp(betas$mean)
