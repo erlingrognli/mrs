@@ -133,59 +133,71 @@ transformed data{
 }
 parameters{
   vector[n_knots] knot_values;
-  vector[N] id_icpt;
-  real<lower=0> var_area_icpt;
-  vector[n_area - 1] area_icpt_raw;
+  real alpha;
   vector[n_beta] beta;
   real<lower=0> sigma;
+  vector<multiplier=2.5>[n_area - 1] area_icpt_raw;
+  vector<multiplier=0.5>[N] id_icpt;
 }
 transformed parameters{
 	// these are the spline coefficients corresponding to the current model
 	vector[n_knots] spl_coeffs = spline_getcoeffs(age_knots, knot_values);
+	// set the icpt of the last area to log(1)
   vector[n_area] area_icpt = append_row(area_icpt_raw, zeros_vector(1));
 }
 model{
   vector[n_obs] mri_mod;
   
   // priors
-  knot_values ~ normal(0,1);
-  id_icpt ~ normal(0,1);
-  area_icpt_raw ~ normal(0, var_area_icpt);
-  var_area_icpt ~ student_t(4,0,2);
-  beta ~ normal(0,1);
+  knot_values ~ normal(0, 1);
+  id_icpt ~ std_normal();
+  area_icpt_raw ~ std_normal();
+  alpha ~ normal(0, 10);
+  beta ~ normal(0, 0.3);
   sigma ~ student_t(4,0,2);
   
   // compute model predictions combining age spline, varying effects of 
   // brain area and individual, and regression coefficients
 
-  mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+  mri_mod = alpha + 
   
-             area_icpt[ind_area] + id_icpt[ind_id] + 
+            spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+  
+            area_icpt[ind_area] + id_icpt[ind_id] + 
              
-             ind_pred * beta;
+            ind_pred * beta;
   
   log_mri ~ normal(mri_mod, sigma); // likelihood
 }
 generated quantities{
   array [n_obs] real ppc;
-  vector[N] log_lik;
+  vector[n_obs] log_lik;
   vector[n_obs] mri_mod;
   
-   mri_mod = spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+   mri_mod = alpha + 
+   
+             spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
              
              area_icpt[ind_area] + id_icpt[ind_id] + 
              
              ind_pred * beta;
   
-  ppc = normal_rng(mri_mod, rep_array(sigma, n_obs)); 
+  ppc = normal_rng(mri_mod, rep_array(sigma, n_obs));
   
-  {int ind = 0; // intialise count variable for segmenting mri data 
-                // and model predictions, to calculate log-likelihood per subject
+  for(n in 1:n_obs){
+    
+  log_lik[n] = normal_lpdf(log_mri[n] | mri_mod[n], sigma);
   
-    for(n in 1:N){
-      
-      log_lik[n] = normal_lpdf(segment(log_mri, ind+1, n_area)| segment(mri_mod, ind+1, n_area), sigma);
-      
-      ind += n_area;}
   }
+  
+  // *code to compute log-likelihood of observations per individual*
+  // {int ind = 0; // intialise count variable for segmenting mri data 
+  //               // and model predictions, to calculate log-likelihood per subject
+  // 
+  // for(n in 1:N){
+  //   
+  //   log_lik_ind[n] = normal_lpdf(segment(log_mri, ind+1, n_area)| segment(mri_mod, ind+1, n_area), sigma);
+  //   
+  //   ind += n_area;}
+  // }
 }
