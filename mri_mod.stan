@@ -111,15 +111,11 @@ array[] int spline_findpos(vector nodes, vector x)
   }
 }
 data{
-  int<lower=1> N;
-  int<lower=1> n_obs;
-  int<lower=1> n_beta;
-  int<lower=1> n_area;
-  array [n_obs] int ind_id;   // index of subjects
-  array [n_obs] int ind_area; // index of brain areas
+  int<lower=1> N, n_obs, n_beta, n_region;
+  array [3] int n_spl;
+  array [n_obs] int ind_id, ind_region, ind_spl;   // indices of subjects, brain areas and splines
   matrix [n_obs, n_beta] ind_pred; // predictor variable matrix
-  vector[n_obs] mri; // mri measurements, sorted by subject
-  vector[n_obs] age;
+  vector[n_obs] mri, age; // mri measurements and subject age
   // input data for controlling spline function
   int n_knots;
   vector [n_knots] age_knots;
@@ -128,42 +124,85 @@ transformed data{
 	// log transform the mri data
 	vector[n_obs] log_mri = log(mri);
 	
-	// determine which knots the point belong to
-	array[n_obs] int age_pos_knots= spline_findpos(age_knots, age);
+	// define indices for separate splines for cortical thickness, area and subcortical volume
+	array[n_spl[1]] int ind_thick;
+	array[n_spl[2]] int ind_area;
+	array[n_spl[3]] int ind_volume;
+	
+	{array [3] int pos = zeros_int_array(3);
+	
+	  for(n in 1:n_obs){
+	    
+	    if(ind_spl[n] == 1){
+	      
+	      ind_thick[pos[1]+1] = n;
+	      
+	      pos[1] += 1;}
+	    
+	    else if(ind_spl[n] == 2){
+	      
+	      ind_area[pos[2]+1] = n;
+	      
+	      pos[2] += 1;}
+	      
+	   else if(ind_spl[n] == 3){
+	     
+	     ind_volume[pos[3]+1] = n;
+	     
+	     pos[3] += 1;}
+	  }}
+	
+	// determine which knots points belong to
+	array[n_spl[1]] int thick_pos_knots = spline_findpos(age_knots, age[ind_thick]);
+	array[n_spl[2]] int area_pos_knots = spline_findpos(age_knots, age[ind_area]);
+	array[n_spl[3]] int volume_pos_knots = spline_findpos(age_knots, age[ind_volume]);
 }
 parameters{
-  vector[n_knots] knot_values;
+  vector[n_knots] thick_knot_values;
+  vector[n_knots] area_knot_values;
+  vector[n_knots] volume_knot_values;
   real alpha;
   vector[n_beta] beta;
   real<lower=0> sigma;
-  vector<multiplier=2.5>[n_area - 1] area_icpt_raw;
+  vector<multiplier=2.5>[n_region - 1] region_icpt_raw;
   vector<multiplier=0.5>[N] id_icpt;
 }
 transformed parameters{
-	// these are the spline coefficients corresponding to the current model
-	vector[n_knots] spl_coeffs = spline_getcoeffs(age_knots, knot_values);
+	vector[n_obs] age_spline;
+	array [3] vector[n_knots] spl_coeffs;
+	
+	spl_coeffs[1] = spline_getcoeffs(age_knots, thick_knot_values);
+	spl_coeffs[2] = spline_getcoeffs(age_knots, area_knot_values);
+	spl_coeffs[3] = spline_getcoeffs(age_knots, volume_knot_values);
+	
+	// compute and combine spline functions of age for thickness, area and volume
+  
+  age_spline[ind_thick] = spline_eval(age_knots, thick_knot_values, spl_coeffs[1], age[ind_thick], thick_pos_knots);
+  age_spline[ind_area] = spline_eval(age_knots, area_knot_values, spl_coeffs[2], age[ind_area], area_pos_knots);
+  age_spline[ind_volume] = spline_eval(age_knots, volume_knot_values, spl_coeffs[3], age[ind_volume], volume_pos_knots);
+
 	// set the icpt of the last area to log(1)
-  vector[n_area] area_icpt = append_row(area_icpt_raw, zeros_vector(1));
+  vector[n_region] region_icpt = append_row(region_icpt_raw, zeros_vector(1));
 }
 model{
   vector[n_obs] mri_mod;
-  
+ 
   // priors
-  knot_values ~ normal(0, 1);
+  thick_knot_values ~ normal(0, 1);
+  area_knot_values ~ normal(0, 1);
+  volume_knot_values ~ normal(0, 1);
   id_icpt ~ std_normal();
-  area_icpt_raw ~ std_normal();
+  region_icpt_raw ~ std_normal();
   alpha ~ normal(0, 10);
   beta ~ normal(0, 0.3);
   sigma ~ student_t(4,0,2);
   
   // compute model predictions combining age spline, varying effects of 
   // brain area and individual, and regression coefficients
-
-  mri_mod = alpha + 
   
-            spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+  mri_mod = alpha + age_spline + 
   
-            area_icpt[ind_area] + id_icpt[ind_id] + 
+            region_icpt[ind_region] + id_icpt[ind_id] + 
              
             ind_pred * beta;
   
@@ -173,12 +212,14 @@ generated quantities{
   array [n_obs] real ppc;
   vector[n_obs] log_lik;
   vector[n_obs] mri_mod;
+  vector[n_beta] beta_exp = exp(beta);
+  real sigma_exp = exp(sigma);
   
-   mri_mod = alpha + 
+  mri_mod = alpha + 
    
-             spline_eval(age_knots, knot_values, spl_coeffs, age, age_pos_knots) +
+             age_spline +
              
-             area_icpt[ind_area] + id_icpt[ind_id] + 
+             region_icpt[ind_region] + id_icpt[ind_id] + 
              
              ind_pred * beta;
   
@@ -189,15 +230,4 @@ generated quantities{
   log_lik[n] = normal_lpdf(log_mri[n] | mri_mod[n], sigma);
   
   }
-  
-  // *code to compute log-likelihood of observations per individual*
-  // {int ind = 0; // intialise count variable for segmenting mri data 
-  //               // and model predictions, to calculate log-likelihood per subject
-  // 
-  // for(n in 1:N){
-  //   
-  //   log_lik_ind[n] = normal_lpdf(segment(log_mri, ind+1, n_area)| segment(mri_mod, ind+1, n_area), sigma);
-  //   
-  //   ind += n_area;}
-  // }
 }
