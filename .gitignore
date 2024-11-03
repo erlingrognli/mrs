@@ -2,5 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-.exe
-.png
+*.exe
+*.png
+/plots
