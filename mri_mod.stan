@@ -161,7 +161,7 @@ parameters{
   vector[n_knots] thick_knot_values;
   vector[n_knots] area_knot_values;
   vector[n_knots] volume_knot_values;
-  real alpha;
+  real<lower=0> alpha;
   vector[n_beta] beta;
   real<lower=0> sigma;
   vector<multiplier=2.5>[n_region - 1] region_icpt_raw;

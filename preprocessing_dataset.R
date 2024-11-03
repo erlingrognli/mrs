@@ -77,9 +77,46 @@ ocd_ytop <-
       female = ifelse(Sex == 'Female', 1, 0),
       ocd = 0,
       scz = 0,
-      .keep = 'unused'))
+      .keep = 'unused')) %>%
   
+  # remove brain measures that will not be used in the model
+  
+  select(!any_of(c("Unknown", "Right.choroid.plexus", "Left.choroid.plexus", 
+                   "Soft_Nonbrain_Tissue", "Fluid_Inside_Eyes", "CSF", "Skull", 
+                   "X5th.Ventricle", "X4th.Ventricle",  "X3rd.Ventricle",
+                   "Right.Inf.Lat.Vent", "Left.Inf.Lat.Vent",
+                   "Left.Lateral.Ventricle", "Right.Lateral.Ventricle",
+                   "Optic.Chiasm", "Right.vessel", "Left.vessel",
+                   "WM.hypointensities", "non.WM.hypointensities")))
+
 write_csv(ocd_ytop, file = '~/mrs_data/mrs_wf_data.csv')
+
+outlier_id <- function(x, sigma, id){
+  
+  ub <- mean(x) + sigma * sd(x)
+  lb <- mean(x) - sigma * sd(x)
+  
+  return(id[which(x>ub|x<lb)])
+  
+}
+
+
+outliers_all <- list('> 4 sd' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
+                                               outlier_id, sigma=4, id = ocd_ytop$SubjID)),
+                     '> 3.5 sd' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
+                                                outlier_id, sigma=3.5,id = ocd_ytop$SubjID)),
+                     '> 3 sd' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
+                                               outlier_id, sigma=3, id = ocd_ytop$SubjID))) %>%
+
+  lapply(enframe, name = "region", value = "id") %>%
+  
+  enframe(name = 'distance') %>%
+  
+  unnest('value') %>%
+  
+  mutate(region = str_remove(region, pattern = '[123]'))
+
+write.csv(outliers_all, file = '~/mrs_data/mrs_outliers.csv')
 
 # pivot data to long format and save to csv
 
