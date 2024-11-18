@@ -1,65 +1,63 @@
 data{
   int<lower=1> N, n_obs, n_beta, n_region;
-  array [n_obs] int ind_id, ind_region, ind_spl;   // indices of subjects, brain areas and splines
-  matrix [n_obs, n_beta] ind_pred; // predictor variable matrix
-  vector[n_obs] mri; // mri measurements and subject age
+  array [n_obs] int ind_id, ind_region;   // indices of subjects and brain regions
+  array [n_region] int ind_measure; // index of which measure used for each region
+  matrix [n_obs, n_beta] pred; // predictor variable matrix
+  vector[n_obs] mri;
 }
 transformed data{
-	// log transform the mri data
-	vector[n_obs] log_mri = log(mri);
+ vector[n_obs] log_mri = log(mri);
 }
 parameters{
-  real<lower=1> nu;
   real<lower=0> alpha;
   vector[n_beta] beta;
-  vector<lower=0>[3] sigma;
-  vector<multiplier=2.5>[n_region - 1] region_icpt_raw;
+  real<lower=0> sigma;
+  vector[2] measure_icpt_raw;
+  vector[n_region] region_icpt;
   vector<multiplier=0.5>[N] id_icpt;
 }
 transformed parameters{
-	// set the icpt of the last area to log(1)
-  vector[n_region] region_icpt = append_row(region_icpt_raw, zeros_vector(1));
+  // fixing the icpt of thickness to log(1) for identification
+  vector[3] measure_icpt = append_row(zeros_vector(1), measure_icpt_raw);
 }
 model{
   vector[n_obs] mri_mod;
  
   // priors
-  nu ~ gamma(3,.3);
-  id_icpt ~ std_normal();
-  region_icpt_raw ~ std_normal();
-  alpha ~ normal(0, 10);
-  beta ~ normal(0, 0.3);
-  sigma ~ student_t(4,0,2);
+  id_icpt ~ std_normal(); // multiplier of .5 gives expected individual average deviations between 44 and 230 %
+  
+  measure_icpt_raw[1] ~ normal(6.9, .5); // average area 1000 times thickness
+  measure_icpt_raw[2] ~ normal(7.6, .5);  // average volume 2000 times thickness
+  region_icpt ~ normal(0, 1); // assuming region deviations from measure intercept between 19 and 500%
+  
+  alpha ~ normal(.7, .1); // assuming mean thickness of 2 mm
+  beta ~ normal(0, 0.45); // assuming multiplicative effect of predictors from 0.48 - 2.1
+  sigma ~ normal(0, 1); // multiplicative error assumed to be within 11 times the predictor
 
-  // compute model predictions combingn varying effects of 
+  // compute model predictions combining varying effects of 
   // brain area and individual, and regression coefficients
   
-  mri_mod = alpha +
+  mri_mod =  alpha + measure_icpt[ind_measure[ind_region]] + region_icpt[ind_region] + 
   
-            region_icpt[ind_region] + id_icpt[ind_id] + 
+             id_icpt[ind_id] + 
              
-            ind_pred * beta;
+             pred * beta;
+             
+  log_mri ~ normal(mri_mod, sigma);
   
-  log_mri ~ student_t(nu, mri_mod, sigma[ind_spl]); // likelihood
 }
 generated quantities{
   array [n_obs] real ppc;
-  vector[n_obs] log_lik;
-  vector[n_beta] beta_exp = exp(beta);
   
   {vector[n_obs] mri_mod;
   
-  mri_mod = alpha + 
-   
-             region_icpt[ind_region] + id_icpt[ind_id] + 
+  mri_mod =  alpha + measure_icpt[ind_measure[ind_region]] + region_icpt[ind_region] + 
+  
+             id_icpt[ind_id] + 
              
-             ind_pred * beta;
+             pred * beta;
   
-  ppc = normal_rng(mri_mod, sigma[ind_spl]);
+  ppc = normal_rng(mri_mod, sigma);
   
-  for(n in 1:n_obs){
-    
-  log_lik[n] = normal_lpdf(log_mri[n] | mri_mod[n], sigma[ind_spl]);
-  
-  }}
+  }
 }

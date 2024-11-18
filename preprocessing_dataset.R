@@ -87,45 +87,78 @@ ocd_ytop <-
                    "Right.Inf.Lat.Vent", "Left.Inf.Lat.Vent",
                    "Left.Lateral.Ventricle", "Right.Lateral.Ventricle",
                    "Optic.Chiasm", "Right.vessel", "Left.vessel",
-                   "WM.hypointensities", "non.WM.hypointensities")))
+                   "WM.hypointensities", "non.WM.hypointensities",
+                   "Left.Cerebral.Cortex", "Right.Cerebral.Cortex",
+                   "Left.Cerebellum.Cortex", "Right.Cerebellum.Cortex",
+                   "Left.Cerebellum.White.Matter", "Right.Cerebellum.White.Matter")))
 
 write_csv(ocd_ytop, file = '~/mrs_data/mrs_wf_data.csv')
 
-outlier_id <- function(x, sigma, id){
+# identify and record outliers and values
+
+outlier_id <- function(x, k, id){
   
-  ub <- mean(x) + sigma * sd(x)
-  lb <- mean(x) - sigma * sd(x)
+  ub <- median(x) + k * mad(x)
+  lb <- median(x) - k * mad(x)
   
   return(id[which(x>ub|x<lb)])
   
 }
 
-
-outliers_all <- list('> 4 sd' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
-                                               outlier_id, sigma=4, id = ocd_ytop$SubjID)),
-                     '> 3.5 sd' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
-                                                outlier_id, sigma=3.5,id = ocd_ytop$SubjID)),
-                     '> 3 sd' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
-                                               outlier_id, sigma=3, id = ocd_ytop$SubjID))) %>%
-
+outliers_all <- list('> 5 mad' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
+                                               outlier_id, k=5, id = ocd_ytop$SubjID)),
+                     '> 4 mad' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
+                                               outlier_id, k=4, id = ocd_ytop$SubjID)),
+                     '> 3.5 mad' = unlist(lapply(select(ocd_ytop, !c(SubjID, female, age, ocd, scz)), 
+                                                 outlier_id, k=3.5, id = ocd_ytop$SubjID))) %>%
+  
   lapply(enframe, name = "region", value = "id") %>%
   
   enframe(name = 'distance') %>%
   
   unnest('value') %>%
   
-  mutate(region = str_remove(region, pattern = '[123]'))
+  mutate(region = str_remove(region, pattern = '[1234567]'),
+         mri = NA,
+         median = NA)
 
-write.csv(outliers_all, file = '~/mrs_data/mrs_outliers.csv')
+for(i in 1:nrow(outliers_all)){
+  outliers_all$mri[i] <-
+    select(
+      filter(
+        ocd_ytop, SubjID == outliers_all$id[i]),
+      outliers_all$region[i])
+  
+  outliers_all$median[i] <- sapply(select(ocd_ytop, outliers_all$region[i]), median)
+  outliers_all$mri <- as.double(outliers_all$mri)}
 
-# pivot data to long format and save to csv
+write.csv(outliers_all, file = '~/mrs_data/mrs_outliers_mad.csv')
+
+# remove outliers > 4 mad
+
+outlier_removal <- function(x, k){
+  
+  ub <- median(x) + k * mad(x)
+  lb <- median(x) - k * mad(x)
+  
+  x[which(x>ub|x<lb)] <- NA
+  
+  return(x)
+}
+
+ocd_ytop <- mutate(ocd_ytop, across(!c(SubjID, female, age, ocd, scz), 
+                                    ~ outlier_removal(.x, k=4)))
+
+# pivot data to long format, remove outlier observations and write to file
 
 write.csv(
-    
-  pivot_longer(ocd_ytop,
+  
+ pivot_longer(ocd_ytop,
     cols = !c(SubjID, female, age, ocd, scz), 
     names_to = 'area_name', 
-    values_to = 'mri'),
+    values_to = 'mri') %>%
+    
+  filter(is.na(mri) == FALSE),
   
   file = '~/mrs_data/mrs_lf_data.csv')
 
