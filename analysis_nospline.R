@@ -1,22 +1,5 @@
 library(cmdstanr); library(tidyverse); library(ggplot2); library(bayesplot); library(posterior)
 
-# define groupings of columns to fit effect of ocd or psychosis for
-
-vPFC_thickness <- c("rh_lateralorbitofrontal_thickness", 
-                    "lh_lateralorbitofrontal_thickness", 
-                    "rh_medialorbitofrontal_thickness", 
-                    "lh_medialorbitofrontal_thickness")
-
-vPFC_area <- c("rh_lateralorbitofrontal_area", 
-               "lh_lateralorbitofrontal_area", 
-               "rh_medialorbitofrontal_area", 
-               "lh_medialorbitofrontal_area",
-               'lh_vPFC_area',
-               'rh_vPFC_area')
-
-caudate <- c('Right.Caudate',
-             'Left.Caudate')
-
 # define function for changing outliers to NA 
 outlier_removal <- function(x, k){
   
@@ -44,8 +27,8 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
   
 # merge measures of individual areas/volumes
 
-  mutate(lh_PFC_area = lh_lateralorbitofrontal_area + lh_medialorbitofrontal_area,
-         rh_PFC_area = rh_lateralorbitofrontal_area + rh_medialorbitofrontal_area
+  mutate(lh_vPFC_area = lh_lateralorbitofrontal_area + lh_medialorbitofrontal_area,
+         rh_vPFC_area = rh_lateralorbitofrontal_area + rh_medialorbitofrontal_area
          ) %>%
 
 # pivot to long format and remove outliers marked as NA
@@ -57,37 +40,41 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
   filter(is.na(mri) == FALSE) %>%
   
 # define measurement variable for thickness(1), area (2) or volume (3)
+# remove markings of left or right hemisphere
   
-  mutate(measure = 
-           case_when(endsWith(region, 'thickness') ~ 1,
-                     endsWith(region, 'area') ~ 2,
-                     endsWith(region, 'Cortex') ~ 2,
-                     .default = 3))
+  mutate(measure = case_when(endsWith(region, 'thickness') ~ 1,
+                             endsWith(region, 'area') ~ 2,
+                             endsWith(region, 'Cortex') ~ 2,
+                             .default = 3),
+         region = str_replace_all(region, c('[lr]h_' = '', 'Left.' = '', 'Right.' = '')))
+
+
+# make index of measure by region, selecting three reference areas as region 1-3
+
+d$region_number <- as_factor(d$region) %>%
+  
+  fct_relevel('lateraloccipital_thickness', 'lateraloccipital_area', 'Brain.Stem') %>%
+  
+  as.integer()
+
+ind_measure <- select(d, region, measure, region_number) %>%
+  
+  reframe(measure = unique(measure), region_number = unique(region_number), .by=region) %>%
+  
+  arrange(region_number)
 
 # construct predictor matrix
- 
+# define groupings of columns to fit effect of ocd or psychosis for
+
+vPFC_thickness <- c("lateralorbitofrontal_thickness", 
+                    "medialorbitofrontal_thickness")
+
 pred <- mutate(d,
-               vpfc_area_ocd = ifelse(region %in% vPFC_area & ocd == 1, 1, 0),
+               vpfc_area_ocd = ifelse(region == 'vPFC_area' & ocd == 1, 1, 0),
                vpfc_thickness_ocd = ifelse(region %in% vPFC_thickness & ocd == 1, 1, 0),
-               caudate_ocd = ifelse(region %in% caudate & ocd == 1, 1, 0),
+               caudate_ocd = ifelse(region == 'Caudate' & ocd == 1, 1, 0),
                .keep = 'none')
 
-
-# remove markings of left or right hemisphere and change region variable to integer coding
-
-d$region <- str_remove(d$region, '[lr]h_')
-d$region <- str_remove(d$region, 'Left.')
-d$region <- str_remove(d$region, 'Right.')
-
-d$region_number <- as.integer(as_factor(d$region))
-
-# make index of measure by region
-
-ind_measure <- select(d, region, measure) %>%
-  
-  reframe(measure = unique(measure), .by=region) %>%
-  
-  arrange(region)
 
 dat <- list(N = length(unique(d$id)),
             n_obs = nrow(d),
@@ -101,13 +88,12 @@ dat <- list(N = length(unique(d$id)),
 
 lpr <- function(mu, sd){ round(exp(qnorm(c(.001, .05, .5, .95, .999), mu, sd)), digits = 2)}
 
-      
 m <- cmdstan_model('mri_mod_nospline.stan')
 
 
 fit <- m$sample(data = dat, 
-                       iter_warmup = 500,
-                       iter_sampling = 500)
+                       iter_warmup = 1000,
+                       iter_sampling = 1000)
 
 np <- nuts_params(fit)
 
@@ -117,7 +103,7 @@ png(file = 'pairs.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_exp'), sigma, starts_with('measure_icpt'), 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]' ),
+mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_exp'), sigma, alpha, 'measure_icpt[2]', 'measure_icpt[3]', 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]' ),
            np = np,
            max_treedepth = 10)
 
@@ -125,22 +111,9 @@ dev.off()
 
 ppc_draws <- fit$draws(variables = 'ppc', format = 'draws_matrix')
 
-png(file = 'violin_grouped.png',
-    width = 75,
-    height = 45,
-    units = 'cm',
-    res = 100)
-
-ppc_violin_grouped(y = log(d$mri), 
-                   yrep = ppc_draws, 
-                   group = d$region,
-                   y_draw = 'violin')
-
-dev.off()
-
 png(file = 'violin_grouped_spl%d.png',
-    width = 75,
-    height = 45,
+    width = 90,
+    height = 30,
     units = 'cm',
     res = 100)
 
@@ -161,33 +134,22 @@ ppc_violin_grouped(y = log(d$mri)[which(d$measure==3)],
 
 dev.off()
 
-ppc_pit_ecdf_grouped(log(d$mri), 
+png(file = 'pit_ecdf.png',
+    width = 90,
+    height = 30,
+    units = 'cm',
+    res = 100)
+
+  ppc_pit_ecdf_grouped(log(d$mri), 
                      yrep = ppc_draws, 
                      group = d$measure,
                      plot_diff = TRUE)
 
-
+dev.off()
 
 
 loo_output <- fit$loo(moment_match = TRUE)
 
-# PPC plot of vPFC area separately for ocd and controls
-
-ppc_violin_grouped(y = log(d$mri[which(d$ind_area==3)]),
-                   yrep = ppc_draws[,which(d$ind_area==3)],
-                   group = d$ocd[which(d$ind_area==3)],
-                   y_draw = 'both')
-
-
-ppc_violin_grouped(y = log(d$mri[which(d$ind_area!=1)]),
-                   yrep = ppc_draws[,which(d$ind_area!=1)],
-                   group = d$female[which(d$ind_area!=1)],
-                   y_draw = 'both')
-
-
-
-# there is something going on here, in the lower tail for the ocd patients
-
-summarise_draws(fit$draws(variables = c('beta_exp', 'measure_icpt', 'sigma')))
+summarise_draws(fit$draws(variables = c('beta_exp', 'sigma', 'alpha')))
 
 mcmc_areas(fit$draws(variables = c('beta_exp')))
