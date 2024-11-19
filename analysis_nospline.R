@@ -150,6 +150,8 @@ dev.off()
 
 loo_output <- fit$loo(moment_match = TRUE)
 
-summarise_draws(fit$draws(variables = c('beta_exp', 'sigma', 'alpha')))
+regpar <- summarise_draws(fit$draws(variables = c('beta_exp', 'sigma', 'alpha')))
+
+icpts <- summarise_draws(fit$draws(variables = c('measure_icpt_raw', 'region_icpt_raw')))
 
 mcmc_areas(fit$draws(variables = c('beta_exp')))
