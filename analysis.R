@@ -1,5 +1,7 @@
 library(cmdstanr); library(tidyverse); library(ggplot2); library(bayesplot); library(posterior)
 
+options(posterior.num_args = c(digits = 2))
+
 # define function for changing outliers to NA 
 outlier_removal <- function(x, k){
   
@@ -78,7 +80,7 @@ pred <- mutate(d,
 
 dat <- list(N = length(unique(d$id)),
             n_obs = nrow(d),
-            n_knots = 5,
+            n_knots = 3,
             n_spl = as.vector(table(d$measure)),
             n_region = max(d$region_number),
             n_beta = ncol(pred),
@@ -88,14 +90,15 @@ dat <- list(N = length(unique(d$id)),
             ind_measure = ind_measure$measure,
             mri = d$mri,
             age = d$age,
-            age_knots = c(11.5, 14.79, 16.13, 17.48, 18.9))
+            age_knots = c(11, 15, 19))
 
 lpr <- function(mu, sd){ round(exp(qnorm(c(.001, .05, .5, .95, .999), mu, sd)), digits = 2)}
 
 m <- cmdstan_model('mri_mod.stan')
 
 pathf <- m$pathfinder(data = dat, 
-                      save_cmdstan_config=TRUE)
+                      save_cmdstan_config = TRUE,
+                      num_threads = 4)
 
 
 fit <- m$sample(data = dat, 
@@ -105,21 +108,26 @@ fit <- m$sample(data = dat,
 
 np <- nuts_params(fit)
 
-png(file = 'pairs.png',
+png(file = 'pairs_spline_%d.png',
     width = 45,
     height = 45,
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_exp'), sigma, alpha, 'measure_icpt[2]', 'measure_icpt[3]', 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]' ),
-           np = np,
-           max_treedepth = 10)
+mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_exp'), starts_with('sigma'), alpha, 'measure_icpt[2]', 'measure_icpt[3]', 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]' )) 
+
+mcmc_pairs(fit$draws(), pars = vars(starts_with('knot_values'), alpha, starts_with('sigma'), 'measure_icpt[2]', 'measure_icpt[3]'))
+
+
+# ,
+#            np = np,
+#            max_treedepth = 10)
 
 dev.off()
 
 ppc_draws <- fit$draws(variables = 'ppc', format = 'draws_matrix')
 
-png(file = 'violin_grouped_spl%d.png',
+png(file = 'violin_grouped_spline_%d.png',
     width = 90,
     height = 30,
     units = 'cm',
@@ -128,17 +136,17 @@ png(file = 'violin_grouped_spl%d.png',
 ppc_violin_grouped(y = log(d$mri)[which(d$measure==1)], 
                    yrep = ppc_draws[,which(d$measure==1)], 
                    group = d$region[which(d$measure==1)],
-                   y_draw = 'violin')
+                   y_draw = 'points')
 
 ppc_violin_grouped(y = log(d$mri)[which(d$measure==2)], 
                    yrep = ppc_draws[,which(d$measure==2)], 
                    group = d$region[which(d$measure==2)],
-                   y_draw = 'violin')
+                   y_draw = 'points')
 
 ppc_violin_grouped(y = log(d$mri)[which(d$measure==3)], 
                    yrep = ppc_draws[,which(d$measure==3)], 
                    group = d$region[which(d$measure==3)],
-                   y_draw = 'violin')
+                   y_draw = 'points')
 
 dev.off()
 

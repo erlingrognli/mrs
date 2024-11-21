@@ -112,7 +112,7 @@ array[] int spline_findpos(vector nodes, vector x)
 }
 data{
   int<lower=1> N, n_obs, n_beta, n_region, n_knots;
-  array [3] int n_spl;
+  array [3] int n_spl; // number of observations in each spline
   array [n_obs] int ind_id, ind_region;   // indices of subjects and brain regions
   array [n_region] int ind_measure; // index of which measure used for each region
   matrix [n_obs, n_beta] pred; // predictor variable matrix
@@ -159,7 +159,7 @@ transformed data{
 parameters{
   real<lower=0> alpha;
   vector[n_beta] beta;
-  real<lower=0> sigma;
+  vector<lower=0>[3] sigma;
   vector[2] measure_icpt_raw;
   vector[n_region-3] region_icpt_raw;
   vector<multiplier=0.5>[N] id_icpt;
@@ -197,7 +197,7 @@ model{
   knot_values[3] ~ normal(0, 2);
   alpha ~ normal(.7, .3); // assuming mean thickness of 2 mm
   beta ~ normal(0, 0.45); // assuming multiplicative effect of predictors from 0.48 - 2.1
-  sigma ~ normal(0, 1.5); // multiplicative error assumed to be within 11 times the predictor
+  sigma ~ normal(0, 1.5); // multiplicative error assumed to be within 11 times the predicted value
 
   // compute model predictions combining varying effects of 
   // brain area and individual, and regression coefficients
@@ -207,8 +207,9 @@ model{
              id_icpt[ind_id] + age_spline +
              
              pred * beta;
-             
-  log_mri ~ normal(mri_mod, sigma);
+  
+  // log-linear likelihood
+  log_mri ~ normal(mri_mod, sigma[ind_measure[ind_region]]);
   
 }
 generated quantities{
@@ -224,10 +225,10 @@ generated quantities{
              
              pred * beta;
   
-  ppc = normal_rng(mri_mod, sigma);
+  ppc = normal_rng(mri_mod, sigma[ind_measure[ind_region]]);
   
   for(n in 1:n_obs){
     
-    log_lik[n] = normal_lpdf(log_mri[n] | mri_mod[n], sigma);}
+    log_lik[n] = normal_lpdf(log_mri[n] | mri_mod[n], sigma[ind_measure[ind_region]][n]);}
   }
 }
