@@ -90,7 +90,8 @@ ocd_ytop <-
                    "WM.hypointensities", "non.WM.hypointensities",
                    "Left.Cerebral.Cortex", "Right.Cerebral.Cortex",
                    "Left.Cerebellum.Cortex", "Right.Cerebellum.Cortex",
-                   "Left.Cerebellum.White.Matter", "Right.Cerebellum.White.Matter")))
+                   "Left.Cerebellum.White.Matter", "Right.Cerebellum.White.Matter",
+                   "Left.Cerebral.White.Matter", "Right.Cerebral.White.Matter")))
 
 write_csv(ocd_ytop, file = '~/mrs_data/mrs_wf_data.csv')
 
