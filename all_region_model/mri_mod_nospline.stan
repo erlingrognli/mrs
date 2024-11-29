@@ -12,10 +12,11 @@ parameters{
   real<lower=0> icpt;
   vector[n_beta] beta;
   vector<lower=0>[3] sigma;
-  vector[2] measure_icpt_raw;
-  vector[n_region-3] region_icpt_raw;
+  vector[2] region_icpt_mu_raw;
   vector<lower=0>[3] region_icpt_sd; // measurewise hyperparameter on variance of region intercepts
+  vector[n_region-3] region_icpt_raw;
   vector[N-1] id_icpt_raw;
+  real<lower=0> id_icpt_sd;
 }
 transformed parameters{
   // fixing icpts at each level to log(1) for identification
@@ -24,18 +25,18 @@ transformed parameters{
   // but is not an estimate of interest
   vector[3] measure_icpt = append_row(zeros_vector(1), measure_icpt_raw);
   vector[n_region] region_icpt = append_row(zeros_vector(3), region_icpt_raw);
-  vector[N] id_icpt = append_row(zeros_vector(1), id_icpt_raw);
+  vector[N] id_icpt = append_row(zeros_vector(1), id_icpt_raw * id_icpt_sd);
 }
 model{
   vector[n_obs] mri_mod;
  
   // priors
-  id_icpt_raw ~ normal(0, .5); // multiplier of .5 gives expected individual average deviations between 44 and 230 %
-  
+  id_icpt_raw ~ std_normal(); // multiplier of .5 gives expected individual average deviations between 44 and 230 %
+  id_icpt_sd ~ gamma(.1, .1);
   measure_icpt_raw[1] ~ normal(6.9, .5); // average area 1000 times thickness
   measure_icpt_raw[2] ~ normal(7.6, .5);  // average volume 2000 times thickness
   region_icpt_sd ~ normal(0, 1.6); // average multiplicative error for regions within 10
-  region_icpt ~ normal(0, region_icpt_sd[ind_measure]); // region intercepts centered on measure intercept, with hyperprior by measure
+  region_icpt ~ normal(measure_icpt[ind_measure], region_icpt_sd[ind_measure]); // region intercepts centered on measure intercept, with hyperprior by measure
   
   icpt ~ normal(.7, .3); // weakly informative centered on a thickness of 2 mm
   beta ~ normal(0, 0.45); // assuming multiplicative effect of predictors from 0.48 - 2.1
@@ -44,7 +45,7 @@ model{
   // compute model predictions combining varying effects of 
   // brain area and individual, and regression coefficients
   
-  mri_mod =  icpt + measure_icpt[ind_measure[ind_region]] + region_icpt[ind_region] + 
+  mri_mod =  icpt + region_icpt[ind_region] + 
   
              id_icpt[ind_id] + 
              

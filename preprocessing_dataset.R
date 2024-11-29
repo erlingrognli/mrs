@@ -79,6 +79,10 @@ ocd_ytop <-
       scz = 0,
       .keep = 'unused')) %>%
   
+  full_join(bind_rows(read_csv('~/mrs_data/OCD_sbTIV.csv', show_col_types = FALSE),
+                      read_csv('~/mrs_data/YTOP_sbTIV.csv', show_col_types = FALSE)),
+                      join_by(SubjID==SubjID)) %>%
+  
   # remove brain measures that will not be used in the model
   
   select(!any_of(c("Unknown", "Right.choroid.plexus", "Left.choroid.plexus", 
@@ -91,7 +95,9 @@ ocd_ytop <-
                    "Left.Cerebral.Cortex", "Right.Cerebral.Cortex",
                    "Left.Cerebellum.Cortex", "Right.Cerebellum.Cortex",
                    "Left.Cerebellum.White.Matter", "Right.Cerebellum.White.Matter",
-                   "Left.Cerebral.White.Matter", "Right.Cerebral.White.Matter")))
+                   "Left.Cerebral.White.Matter", "Right.Cerebral.White.Matter",
+                   "Brain.Stem", "Left.VentralDC", "Right.VentralDC")))
+  
 
 write_csv(ocd_ytop, file = '~/mrs_data/mrs_wf_data.csv')
 
