@@ -24,18 +24,18 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
   mutate(id = 1:length(SubjID),
          .keep = 'unused') %>%
   
-# mark outliers by changing observations deviating more than 4 MAD to NA
+  # mark outliers by changing observations deviating more than 4 MAD to NA
   
   mutate(across(!c(id, female, age, ocd, scz), 
-                        ~ outlier_removal(.x, k=4))) %>% 
+                ~ outlier_removal(.x, k=4))) %>% 
   
-# merge measures of individual areas/volumes
-
+  # merge measures of individual areas/volumes
+  
   # mutate(lh_vPFC_area = lh_lateralorbitofrontal_area + lh_medialorbitofrontal_area,
   #        rh_vPFC_area = rh_lateralorbitofrontal_area + rh_medialorbitofrontal_area
   #        ) %>%
-
-# pivot to long format and remove outliers marked as NA
+  
+  # pivot to long format and remove outliers marked as NA
   
   pivot_longer(cols = !c(id, female, age, ocd, scz), 
                names_to = 'region', 
@@ -43,8 +43,8 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
   
   filter(is.na(mri) == FALSE) %>%
   
-# define measurement variable for thickness(1), area (2) or volume (3)
-# remove markings of left or right hemisphere
+  # define measurement variable for thickness(1), area (2) or volume (3)
+  # remove markings of left or right hemisphere
   
   mutate(measure = case_when(endsWith(region, 'thickness') ~ 1,
                              endsWith(region, 'area') ~ 2,
@@ -85,60 +85,52 @@ pred <- mutate(d,
 
 dat <- list(N = length(unique(d$id)),
             n_obs = nrow(d),
+            n_knots = 3,
+            n_spl = as.vector(table(d$measure)),
             n_region = max(d$region_number),
             n_beta = ncol(pred),
             ind_id = d$id,
             ind_region = d$region_number,
             pred = as.matrix(pred),
             ind_measure = ind_measure$measure,
-            mri = d$mri)
+            mri = d$mri,
+            age = d$age,
+            age_knots = c(11, 15, 19))
 
 lpr <- function(mu, sd){ round(exp(qnorm(c(.001, .05, .5, .95, .999), mu, sd)), digits = 2)}
 
-m <- cmdstan_model('mri_mod_nospline.stan')
+m <- cmdstan_model('mri_mod_spline.stan')
 
-# pf <- m$pathfinder(data = dat,
-#                    save_cmdstan_config = TRUE)
-# 
-# write_rds(pf, file = 'pf_nospline.rds')
 
-read_rds(pf, file = 'pf_nospline.rds')
+pf <- m$pathfinder(data = dat,
+                   save_cmdstan_config = TRUE)
+
+write_rds(pf, file = 'pf_spline.rds')
+
+pf <- read_rds(pf, file = 'pf_spline.rds')
 
 fit <- m$sample(data = dat, 
-                       iter_warmup = 1000,
-                       iter_sampling = 1000,
+                       iter_warmup = 300,
+                       iter_sampling = 300,
                 init = pf)
 
 np <- nuts_params(fit)
 
-png(file = 'pairs.png',
+png(file = 'pairs_spl.png',
     width = 45,
     height = 45,
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_exp'), starts_with('sigma'), alpha, 'measure_icpt[2]', 'measure_icpt[3]', 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]'),
-           np = np,
-           max_treedepth = 10)
+mcmc_pairs(fit$draws(), pars = vars(starts_with('knot_values_raw'), icpt, 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]', 'id_icpt_raw[10]', 'id_icpt_raw[30]', 'measure_icpt[2]', 'measure_icpt[3]', starts_with('sigma')))
 
-dev.off()
-
-png(file = 'pairs_icpt.png',
-    width = 45,
-    height = 45,
-    units = 'cm',
-    res = 100)
-
-mcmc_pairs(fit$draws(), pars = vars('icpt', 'measure_icpt[2]', 'measure_icpt[3]', 'region_icpt[30]', 'region_icpt[60]', 'region_icpt[75]', 'id_icpt_raw[10]', 'id_icpt_raw[30]', 'id_icpt_raw[50]'),
-           np = np,
-           max_treedepth = 10)
 dev.off()
 
 ppc_draws <- fit$draws(variables = 'ppc', format = 'draws_matrix')
 
 bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
 
-png(file = 'violin_thickness.png',
+png(file = 'violin_thickness_spl.png',
     width = 45,
     height = 15,
     units = 'cm',
@@ -150,7 +142,7 @@ ppc_violin_grouped(y = log(d$mri)[which(d$measure==1)],
                    y_draw = 'violin')
 dev.off()
 
-png(file = 'violin_area.png',
+png(file = 'violin_area_spl.png',
     width = 45,
     height = 15,
     units = 'cm',
@@ -162,7 +154,7 @@ ppc_violin_grouped(y = log(d$mri)[which(d$measure==2)],
                    y_draw = 'violin')
 dev.off()
 
-png(file = 'violin_volume.png',
+png(file = 'violin_volume_spl.png',
     width = 13,
     height = 15,
     units = 'cm',
@@ -174,9 +166,9 @@ ppc_violin_grouped(y = log(d$mri)[which(d$measure==3)],
                    y_draw = 'violin')
 dev.off()
 
-png(file = 'pit_ecdf.png',
-    width = 36,
-    height = 12,
+png(file = 'pit_ecdf_spl.png',
+    width = 90,
+    height = 30,
     units = 'cm',
     res = 100)
 
@@ -186,8 +178,11 @@ png(file = 'pit_ecdf.png',
                      plot_diff = TRUE)
 dev.off()
 
+
 loo_output <- fit$loo(moment_match = TRUE)
 
-regpar <- summarise_draws(fit$draws(variables = c('beta_exp', 'sigma')))
+write_rds(loo_output, file = 'loo_spline.rds')
 
-icpts <- summarise_draws(fit$draws(variables = c('icpt', 'measure_icpt_raw', 'region_icpt_sd', 'region_icpt_raw', 'id_icpt_raw')))
+regpar <- summarise_draws(fit$draws(variables = c('beta_exp', 'sigma', 'alpha')))
+
+icpts <- summarise_draws(fit$draws(variables = c('measure_icpt_raw', 'region_icpt_raw')))
