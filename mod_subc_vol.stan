@@ -29,8 +29,7 @@ parameters{
   vector[n_str] beta_age;
   vector[n_str] beta_female;
   vector[n_str] beta_ocd;
-  vector<offset = mu_alpha_measure, 
-         multiplier = sigma_alpha_measure>[n_str] alpha_measure;
+  vector[n_str] alpha_measure;
   vector[N] alpha_id;
 }
 model{
@@ -54,7 +53,7 @@ model{
   sigma_beta_ocd ~ normal(0, .3);
 
 //priors
-  alpha_measure ~ std_normal(); 
+  alpha_measure ~ normal(mu_alpha_measure, sigma_alpha_measure); 
   beta_age ~ normal(mu_beta_age, sigma_beta_age);
   beta_female ~ normal(mu_beta_female, sigma_beta_female);
   beta_ocd ~ normal(mu_beta_ocd, sigma_beta_ocd);
