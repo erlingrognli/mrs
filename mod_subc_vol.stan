@@ -15,11 +15,11 @@ parameters{
   real beta_icv;
   real<lower=0> sigma_alpha_id;
   real mu_beta_age;
-  real<lower=0> sigma_beta_age;
+  //real<lower=0> sigma_beta_age;
   real mu_beta_female;
-  real<lower=0> sigma_beta_female;
+  //real<lower=0> sigma_beta_female;
   real mu_beta_ocd;
-  real<lower=0> sigma_beta_ocd;
+  //real<lower=0> sigma_beta_ocd;
 // parameters
   real alpha;
   vector<lower=0>[n_str] sigma;
@@ -41,19 +41,19 @@ model{
   sigma_alpha_id ~ normal(0, .3);
 
   mu_beta_age ~ normal(0, .5);
-  sigma_beta_age ~ normal(0, .3);
+ // sigma_beta_age ~ normal(0, .3);
 
   mu_beta_female ~ normal(0, .5);
-  sigma_beta_female ~ normal(0, .3);
+ // sigma_beta_female ~ normal(0, .3);
 
   mu_beta_ocd ~ normal(0, .5);
-  sigma_beta_ocd ~ normal(0, .3);
+ // sigma_beta_ocd ~ normal(0, .3);
 
 //priors
   alpha_str_raw ~ normal(0, .75); // structure intercepts defined as deviations from structure 1 for identification
-  beta_age ~ normal(mu_beta_age, sigma_beta_age);
-  beta_female ~ normal(mu_beta_female, sigma_beta_female);
-  beta_ocd ~ normal(mu_beta_ocd, sigma_beta_ocd);
+  beta_age ~ normal(mu_beta_age, .5);
+  beta_female ~ normal(mu_beta_female, .5);
+  beta_ocd ~ normal(mu_beta_ocd, .5);
   
 // individual intercept terms informed by data on intracranial volume
   alpha_id ~ normal(icv * beta_icv, sigma_alpha_id);

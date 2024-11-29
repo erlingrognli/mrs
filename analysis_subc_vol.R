@@ -67,10 +67,9 @@ pf <- m$pathfinder(data = dat,
                    save_cmdstan_config = TRUE)
 
 fit <- m$sample(data = dat, 
-                iter_warmup = 500,
-                iter_sampling = 500,
-                init = pf, 
-                adapt_delta = .9)
+                iter_warmup = 1000,
+                iter_sampling = 1000,
+                init = pf)
 
 np <- nuts_params(fit)
 
@@ -83,8 +82,8 @@ png(file = 'pairs_hyper.png',
     res = 100)
 
 mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
-                                    mu_beta_age, sigma_beta_age, mu_beta_female,
-                                    sigma_beta_female, mu_beta_ocd, sigma_beta_ocd),
+                                    mu_beta_age, mu_beta_female,
+                                    mu_beta_ocd),
            np = np,
            max_treedepth = 10)
 
@@ -144,3 +143,7 @@ dev.off()
 setwd('~/mrs')
 
 loo_output <- fit$loo(moment_match = TRUE)
+
+regpar <- mutate(fit$summary(variables = c('beta_icv', 'sigma_alpha_id', 'beta_ocd', 'sigma')), 
+                 across(2:7, ~ exp))
+
