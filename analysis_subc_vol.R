@@ -44,7 +44,7 @@ d <- pivot_longer(d, cols = !c(id, female, age, ocd, scz, sbTIV),
     
   filter(is.na(mri)==FALSE & str_name%in%c('Amygdala', 'Hippocampus', 'Putamen', 'Pallidum', 'Caudate', 'Thalamus')) %>%
   
-  mutate(str = as_factor(str_name) %>% as.integer())
+  mutate(str = as_factor(str_name) %>% fct_relevel('Thalamus') %>% as.integer())
     
 lpr <- function(mu, sd){ round(exp(qnorm(c(.001, .05, .5, .95, .999), mu, sd)), digits = 2)}
 
@@ -61,7 +61,6 @@ dat = dat <- list(
             ocd = d$ocd)
 
 
-
 m <- cmdstan_model('mod_subc_vol.stan')
 
 pf <- m$pathfinder(data = dat,
@@ -70,7 +69,8 @@ pf <- m$pathfinder(data = dat,
 fit <- m$sample(data = dat, 
                 iter_warmup = 500,
                 iter_sampling = 500,
-                init = pf)
+                init = pf, 
+                adapt_delta = .9)
 
 np <- nuts_params(fit)
 
@@ -82,8 +82,7 @@ png(file = 'pairs_hyper.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(mu_alpha_id, beta_icv, sigma_alpha_id,
-                                    mu_alpha_measure, sigma_alpha_measure,
+mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
                                     mu_beta_age, sigma_beta_age, mu_beta_female,
                                     sigma_beta_female, mu_beta_ocd, sigma_beta_ocd),
            np = np,
@@ -97,7 +96,19 @@ png(file = 'pairs_icpt.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(starts_with('alpha_measure'), 'alpha_id[10]', 'alpha_id[15]', 'alpha_id[30]'),
+mcmc_pairs(fit$draws(), pars = vars('beta_icv', 'sigma_alpha_id', starts_with('alpha_str_raw'), 
+                                    'alpha_id[10]', 'alpha_id[15]', 'alpha_id[30]'),
+           np = np,
+           max_treedepth = 10)
+dev.off()
+
+png(file = 'pairs_beta.png',
+    width = 45,
+    height = 45,
+    units = 'cm',
+    res = 100)
+
+mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_age'), starts_with('beta_female'), starts_with('beta_ocd')),
            np = np,
            max_treedepth = 10)
 dev.off()
@@ -129,5 +140,7 @@ png(file = 'pit_ecdf.png',
                      group = d$str_name,
                      plot_diff = TRUE)
 dev.off()
+
+setwd('~/mrs')
 
 loo_output <- fit$loo(moment_match = TRUE)
