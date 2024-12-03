@@ -1,6 +1,6 @@
 library(cmdstanr); library(tidyverse); library(ggplot2); library(bayesplot); library(posterior)
 
-options(posterior.num_args = c('digits' = 2),
+options(posterior.digits = 2,
         mc.cores = 4)
 
 
@@ -42,9 +42,10 @@ d <- pivot_longer(d, cols = !c(id, female, age, ocd, scz, sbTIV),
          sbTIV = NULL,
          .keep = 'all') %>%
     
-  filter(is.na(mri)==FALSE & str_name%in%c('Amygdala', 'Hippocampus', 'Putamen', 'Pallidum', 'Caudate', 'Thalamus')) %>%
+  filter(is.na(mri)==FALSE & str_name%in%c('Amygdala', 'Hippocampus', 'Putamen', 'Pallidum', 'Caudate', 'Thalamus', 'Accumbens.area', 'Lateral.Ventricle')) %>%
   
-  mutate(str = as_factor(str_name) %>% fct_relevel('Thalamus') %>% as.integer())
+  mutate(str_name = as_factor(str_name) %>% fct_relevel('Thalamus'), # make Thalamus reference region for intercepts
+         str = as.integer(str_name))
     
 lpr <- function(mu, sd){ round(exp(qnorm(c(.001, .05, .5, .95, .999), mu, sd)), digits = 2)}
 
@@ -58,18 +59,17 @@ dat = dat <- list(
             icv = icv,
             age = d$age_std,
             female = d$female,
-            ocd = d$ocd)
+            ocd = d$ocd,
+            alpha_params = c(8, .1))
 
 
-m <- cmdstan_model('mod_subc_vol.stan')
-
-pf <- m$pathfinder(data = dat,
-                   save_cmdstan_config = TRUE)
+m <- cmdstan_model('mod_mrs.stan')
 
 fit <- m$sample(data = dat, 
                 iter_warmup = 1000,
-                iter_sampling = 1000,
-                init = pf)
+                iter_sampling = 1500)
+
+fit$cmdstan_diagnose()
 
 np <- nuts_params(fit)
 
@@ -101,17 +101,6 @@ mcmc_pairs(fit$draws(), pars = vars('beta_icv', 'sigma_alpha_id', starts_with('a
            max_treedepth = 10)
 dev.off()
 
-png(file = 'pairs_beta.png',
-    width = 45,
-    height = 45,
-    units = 'cm',
-    res = 100)
-
-mcmc_pairs(fit$draws(), pars = vars(starts_with('beta_age'), starts_with('beta_female'), starts_with('beta_ocd')),
-           np = np,
-           max_treedepth = 10)
-dev.off()
-
 ppc_draws <- fit$draws(variables = 'ppc', format = 'draws_matrix')
 
 bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
@@ -125,7 +114,9 @@ png(file = 'violin_ppc.png',
 ppc_violin_grouped(y = log(d$mri), 
                    yrep = ppc_draws, 
                    group = d$str_name,
-                   y_draw = 'both')
+                   y_draw = 'both') +
+  labs(title = 'Posterior predictive plot')
+
 dev.off()
 
 png(file = 'pit_ecdf.png',
@@ -140,10 +131,31 @@ png(file = 'pit_ecdf.png',
                      plot_diff = TRUE)
 dev.off()
 
+png(file = 'ocd_betas.png',
+    width = 20,
+    height = 20,
+    units = 'cm',
+    res = 200)
+
+fit$draws(variables = 'exp_beta_ocd') %>%
+  
+  rename_variables('Thalamus' = 'exp_beta_ocd[1]', 
+                   'Amygdala' = 'exp_beta_ocd[2]', 
+                   'Hippocampus' = 'exp_beta_ocd[3]',
+                   'Accumbens(area)' = 'exp_beta_ocd[4]',
+                   'Putamen' = 'exp_beta_ocd[5]',
+                   'Lateral Ventricle' = 'exp_beta_ocd[6]',
+                   'Pallidum' = 'exp_beta_ocd[7]',
+                   'Caudate' = 'exp_beta_ocd[8]') %>%
+  mcmc_areas() +
+  labs(title = 'Multiplicative effect of OCD (posterior distributions)', 
+       subtitle = 'Ajusted for age, gender and intracranial volume' )
+
+  dev.off()
+
+
 setwd('~/mrs')
 
 loo_output <- fit$loo(moment_match = TRUE)
 
-regpar <- mutate(fit$summary(variables = c('beta_icv', 'sigma_alpha_id', 'beta_ocd', 'sigma')), 
-                 across(2:7, ~ exp))
-
+fit$summary(variables = c('mu_beta_female', 'mu_beta_age', 'beta_icv'))

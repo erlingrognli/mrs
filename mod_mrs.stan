@@ -1,11 +1,12 @@
 data{
   int<lower=1> N, n_obs, n_str;
-  array [n_obs] int ind_id, ind_str;   // indices of subjects and brain structures
+  array [n_obs] int ind_id, ind_str; // indices of subjects and brain structures
   vector[n_obs] mri;
   vector[n_obs] age;
   vector[n_obs] female;
   vector[N] icv;
   vector[n_obs] ocd;
+  vector[2] alpha_params;
 }
 transformed data{
  vector[n_obs] log_mri = log(mri);
@@ -15,11 +16,8 @@ parameters{
   real beta_icv;
   real<lower=0> sigma_alpha_id;
   real mu_beta_age;
-  //real<lower=0> sigma_beta_age;
   real mu_beta_female;
-  //real<lower=0> sigma_beta_female;
   real mu_beta_ocd;
-  //real<lower=0> sigma_beta_ocd;
 // parameters
   real alpha;
   vector<lower=0>[n_str] sigma;
@@ -37,27 +35,34 @@ model{
   vector[n_obs] mri_pred;
   
 // hyperpriors
-  beta_icv ~ normal(0, .3);
-  sigma_alpha_id ~ normal(0, .3);
-
-  mu_beta_age ~ normal(0, .5);
- // sigma_beta_age ~ normal(0, .3);
-
-  mu_beta_female ~ normal(0, .5);
- // sigma_beta_female ~ normal(0, .3);
-
-  mu_beta_ocd ~ normal(0, .5);
- // sigma_beta_ocd ~ normal(0, .3);
-
-//priors
-  alpha_str_raw ~ normal(0, .75); // structure intercepts defined as deviations from structure 1 for identification
-  beta_age ~ normal(mu_beta_age, .5);
-  beta_female ~ normal(mu_beta_female, .5);
-  beta_ocd ~ normal(mu_beta_ocd, .5);
+  sigma_alpha_id ~ normal(0, .25);
+  // assuming that the average multiplicative deviation from the expectation for 
+  // subject random effect, conditional on intracranial volume, is within 1.65
   
-// individual intercept terms informed by data on intracranial volume
+  beta_icv ~ normal(0, .4);
+  mu_beta_age ~ normal(0, .4);
+  mu_beta_female ~ normal(0, .4);
+  mu_beta_ocd ~ normal(0, .4);
+  // hyperpriors encode an assumption that the average multiplicative effect of 
+  // 0-1 scaled age, female gender, ocd and z-score icv across structures 
+  // are between .44 and 2.22 with 95% certainty
+ 
+// priors
+  alpha_str_raw ~ normal(0, .8);
+  // structure intercepts defined as multiplicative deviations from structure #1 
+  // for model identifiability, and prior assumes structure intercepts to have
+  // multiplicative deviations from #1 between .2 and 4.95
+  beta_age ~ normal(mu_beta_age, .4);
+  beta_female ~ normal(mu_beta_female, .4);
+  beta_ocd ~ normal(mu_beta_ocd, .4);
+  // variance of .4 encodes a general assumption that multiplicative variability  
+  // in age, gender and ocd effects across structures is no larger than 2.22
+  
   alpha_id ~ normal(icv * beta_icv, sigma_alpha_id);
-  alpha ~ normal(8, .1);
+  // individual intercept terms informed by data on intracranial volume
+  alpha ~ normal(alpha_params[1], alpha_params[2]);
+  // overall intercept scales the rest of the model parameters, and is supplied
+  // as data, to allow for modeling of thickness, volume and area
   sigma ~ normal(0, 1);
   
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
@@ -67,11 +72,12 @@ model{
              ocd .* beta_ocd[ind_str];
   
   log_mri ~ normal(mri_pred, sigma[ind_str]);
-  
 }
 generated quantities{
   array [n_obs] real ppc;
   vector [n_obs] log_lik;
+  vector [n_str] exp_beta_ocd = exp(beta_ocd);
+ 
   {vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
                             age .* beta_age[ind_str] + female .* beta_female[ind_str] +
