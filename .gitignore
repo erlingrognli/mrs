@@ -5,3 +5,4 @@
 *.exe
 *.png
 /plots
+*.rds

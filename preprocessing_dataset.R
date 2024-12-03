@@ -89,7 +89,7 @@ ocd_ytop <-
                    "Soft_Nonbrain_Tissue", "Fluid_Inside_Eyes", "CSF", "Skull", 
                    "X5th.Ventricle", "X4th.Ventricle",  "X3rd.Ventricle",
                    "Right.Inf.Lat.Vent", "Left.Inf.Lat.Vent",
-                   "Left.Lateral.Ventricle", "Right.Lateral.Ventricle",
+                   #"Left.Lateral.Ventricle", "Right.Lateral.Ventricle",
                    "Optic.Chiasm", "Right.vessel", "Left.vessel",
                    "WM.hypointensities", "non.WM.hypointensities",
                    "Left.Cerebral.Cortex", "Right.Cerebral.Cortex",
