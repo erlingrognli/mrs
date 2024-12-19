@@ -5,7 +5,8 @@ data{
   vector[n_obs] age;
   vector[n_obs] female;
   vector[N] icv;
-  vector[n_obs] ocd;
+  vector[n_obs] ocd; // one-hot encoded ocd diagnostic status
+  vector[n_obs] eop; // one-hot encoded eop diagnostic status
   vector[2] alpha_params;
 }
 transformed data{
@@ -18,6 +19,7 @@ parameters{
   real mu_beta_age;
   real mu_beta_female;
   real mu_beta_ocd;
+  real mu_beta_eop;
 // parameters
   real alpha;
   vector<lower=0>[n_str] sigma;
@@ -25,6 +27,7 @@ parameters{
   vector[n_str] beta_female;
   vector[n_str] beta_ocd;
   vector[n_str-1] alpha_str_raw;
+  vector[n_str] beta_eop;
   vector[N] alpha_id;
 }
 transformed parameters{
@@ -43,6 +46,7 @@ model{
   mu_beta_age ~ normal(0, .4);
   mu_beta_female ~ normal(0, .4);
   mu_beta_ocd ~ normal(0, .4);
+  mu_beta_eop ~ normal(0, .4);
   // hyperpriors encode an assumption that the average multiplicative effect of 
   // 0-1 scaled age, female gender, ocd and z-score icv across structures 
   // are between .44 and 2.22 with 95% certainty
@@ -55,19 +59,22 @@ model{
   beta_age ~ normal(mu_beta_age, .4);
   beta_female ~ normal(mu_beta_female, .4);
   beta_ocd ~ normal(mu_beta_ocd, .4);
+  beta_eop ~ normal(mu_beta_eop, .4);
   // variance of .4 encodes a general assumption that multiplicative variability  
   // in age, gender and ocd effects across structures is no larger than 2.22
   
   alpha_id ~ normal(icv * beta_icv, sigma_alpha_id);
   // individual intercept terms informed by data on intracranial volume
   alpha ~ normal(alpha_params[1], alpha_params[2]);
-  // overall intercept scales the rest of the model parameters, and is supplied
-  // as data, to allow for modeling of thickness, volume and area
+  // overall intercept scales the rest of the model parameters, as they are multiplicative
+  // and is supplied as data, to allow for modeling of thickness, volume and area
   sigma ~ normal(0, 1);
   
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
              age .* beta_age[ind_str] + female .* beta_female[ind_str] +
+             
+             eop .* beta_eop[ind_str] + 
              
              ocd .* beta_ocd[ind_str];
   
@@ -77,10 +84,13 @@ generated quantities{
   array [n_obs] real ppc;
   vector [n_obs] log_lik;
   vector [n_str] exp_beta_ocd = exp(beta_ocd);
+  vector [n_str] exp_beta_eop = exp(beta_eop);
  
   {vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
                             age .* beta_age[ind_str] + female .* beta_female[ind_str] +
+                            
+                            eop .* beta_eop[ind_str] + 
              
                             ocd .* beta_ocd[ind_str];
   

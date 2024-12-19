@@ -46,8 +46,18 @@ d <- pivot_longer(d, cols = !c(id, female, age, ocd, scz, sbTIV),
   
   mutate(str_name = as_factor(str_name) %>% fct_relevel('Thalamus'), # make Thalamus reference region for intercepts
          str = as.integer(str_name))
-    
-lpr <- function(mu, sd){ round(exp(qnorm(c(.001, .05, .5, .95, .999), mu, sd)), digits = 2)}
+
+# make and save plot illustrating that age can be represented by a linear effect
+
+png(file = '~/mrs/plots/subc_age_spline.png')
+  
+  ggplot(d, aes(x = age, y = log(mri))) +
+  geom_point() + 
+  geom_smooth(method = 'loess') + 
+  facet_wrap(vars(str_name)) + 
+  labs(title = 'MRI measurements across age', subtitle = '(With LOESS smooths)')
+
+  dev.off()
 
 dat = dat <- list(
             N = length(unique(d$id)),
@@ -70,8 +80,6 @@ fit <- m$sample(data = dat,
                 iter_sampling = 1500)
 
 fit$cmdstan_diagnose()
-
-np <- nuts_params(fit)
 
 setwd('~/mrs/plots')
 
