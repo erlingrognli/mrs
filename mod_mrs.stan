@@ -8,6 +8,7 @@ data{
   vector[n_obs] ocd; // one-hot encoded ocd diagnostic status
   vector[n_obs] eop; // one-hot encoded eop diagnostic status
   vector[2] alpha_params;
+  int<lower=0, upper=1> predict;
 }
 transformed data{
  vector[n_obs] log_mri = log(mri);
@@ -81,12 +82,15 @@ model{
   log_mri ~ normal(mri_pred, sigma[ind_str]);
 }
 generated quantities{
-  array [n_obs] real ppc;
-  vector [n_obs] log_lik;
-  vector [n_str] exp_beta_ocd = exp(beta_ocd);
-  vector [n_str] exp_beta_eop = exp(beta_eop);
+  
+  if(predict == 0){
+  
+    array [n_obs] real ppc;
+    vector [n_obs] log_lik;
+    vector [n_str] exp_beta_ocd = exp(beta_ocd);
+    vector [n_str] exp_beta_eop = exp(beta_eop);
  
-  {vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
+    {vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
                             age .* beta_age[ind_str] + female .* beta_female[ind_str] +
                             
@@ -94,10 +98,26 @@ generated quantities{
              
                             ocd .* beta_ocd[ind_str];
   
-  ppc = normal_rng(mri_pred, sigma[ind_str]);
+    ppc = normal_rng(mri_pred, sigma[ind_str]);
   
-  for(n in 1:n_obs){
+    for(n in 1:n_obs){
 
-    log_lik[n] = normal_lpdf(log_mri[n] | mri_pred[n], sigma[ind_str][n]);}
-  }
+      log_lik[n] = normal_lpdf(log_mri[n] | mri_pred[n], sigma[ind_str][n]);}
+    }}
+    
+    else{
+      
+      array[3, n_str] real predictions;
+      real mean_icv = mean(icv);
+      real mean_age = mean(age);
+      
+      for(k in 1:n_str){ // gender data is encoded +/- .5
+                         // random intercepts are based on icv, which is centered
+                         // both are omitted from predictions
+          
+          predictions[1,k] = normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k], sigma[k]);
+          predictions[2,k] = normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + beta_ocd[k], sigma[k]);
+          predictions[3,k] = normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + beta_eop[k], sigma[k]);
+      }}
+    
 }

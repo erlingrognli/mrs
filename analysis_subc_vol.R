@@ -26,14 +26,14 @@ d <- read_csv(file = '~/mrs_data/mrs_wf_data.csv',
   
 # mark outliers by changing observations deviating more than 4 MAD to NA
   
-  mutate(across(!c(id, female, age, ocd, scz, sbTIV), 
+  mutate(across(!c(id, female, age, ocd, eop, sbTIV), 
                         ~ outlier_removal(.x, k=4)))
 
   icv <- as.vector(scale(d$sbTIV))
   
 # pivot to long format
   
-d <- pivot_longer(d, cols = !c(id, female, age, ocd, scz, sbTIV), 
+d <- pivot_longer(d, cols = !c(id, female, age, ocd, eop, sbTIV), 
                names_to = 'str_name', 
                values_to = 'mri') %>%
     
@@ -70,6 +70,7 @@ dat = dat <- list(
             age = d$age_std,
             female = d$female,
             ocd = d$ocd,
+            eop = d$eop,
             alpha_params = c(8, .1))
 
 
@@ -91,7 +92,7 @@ png(file = 'pairs_hyper.png',
 
 mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
                                     mu_beta_age, mu_beta_female,
-                                    mu_beta_ocd),
+                                    mu_beta_ocd, mu_beta_eop),
            np = np,
            max_treedepth = 10)
 
@@ -161,9 +162,31 @@ fit$draws(variables = 'exp_beta_ocd') %>%
 
   dev.off()
 
+png(file = 'eop_betas.png',
+      width = 20,
+      height = 20,
+      units = 'cm',
+      res = 200)
+
+fit$draws(variables = 'exp_beta_eop') %>%
+    
+    rename_variables('Thalamus' = 'exp_beta_eop[1]', 
+                     'Amygdala' = 'exp_beta_eop[2]', 
+                     'Hippocampus' = 'exp_beta_eop[3]',
+                     'Accumbens(area)' = 'exp_beta_eop[4]',
+                     'Putamen' = 'exp_beta_eop[5]',
+                     'Lateral Ventricle' = 'exp_beta_eop[6]',
+                     'Pallidum' = 'exp_beta_eop[7]',
+                     'Caudate' = 'exp_beta_eop[8]') %>%
+    mcmc_areas() +
+    labs(title = 'Multiplicative effect of EOP (posterior distributions)', 
+         subtitle = 'Ajusted for age, gender and intracranial volume' )
+  
+  dev.off()
+  
 
 setwd('~/mrs')
 
-loo_output <- fit$loo(moment_match = TRUE)
+magloo_output <- fit$loo(moment_match = TRUE)
 
 fit$summary(variables = c('mu_beta_female', 'mu_beta_age', 'beta_icv'))
