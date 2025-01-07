@@ -3,10 +3,10 @@ data{
   array [n_obs] int ind_id, ind_str; // indices of subjects and brain structures
   vector[n_obs] mri;
   vector[n_obs] age;
-  vector[n_obs] gender;
+  vector[n_obs] gender; // gender coded +/- .5
   vector[N] icv;
   vector[n_obs] ocd; // one-hot encoded ocd diagnostic status
-  vector[n_obs] eos; // one-hot encoded eos diagnostic status
+  vector[n_obs] eos; // one-hot encoded eop diagnostic status
   vector[2] alpha_params;
 }
 transformed data{
@@ -24,15 +24,11 @@ parameters{
   real<lower=0> sigma_alpha_str;
   real mu_beta_age;
   real mu_beta_gender;
-  real mu_beta_ocd;
-  real mu_beta_eos;
 // parameters
   real alpha;
   vector<lower=0>[n_str] sigma;
   vector[n_str] beta_age;
   vector[n_str] beta_gender;
-  vector[n_str] beta_ocd;
-  vector[n_str] beta_eos;
   vector[N] alpha_id;
   sum_to_zero_vector[n_str] alpha_str; 
 // intercepts for structures get a sum to zero constraint, for model identification
@@ -51,18 +47,14 @@ model{
   beta_icv ~ normal(0, .4);
   mu_beta_age ~ normal(0, .4);
   mu_beta_gender ~ normal(0, .4);
-  mu_beta_ocd ~ normal(0, .4);
-  mu_beta_eos ~ normal(0, .4);
   // hyperpriors encode an assumption that the average multiplicative effect of 
-  // 0-1 scaled age, gender, ocd and z-score icv across structures 
+  // 0-1 scaled age, gender difference, ocd and z-score icv across structures 
   // are between .44 and 2.22 with 95% certainty
  
 // priors
   alpha_str ~ normal(0, sigma_alpha_str * sigma_alpha_str_multiplier);
   beta_age ~ normal(mu_beta_age, .4);
   beta_gender ~ normal(mu_beta_gender, .4);
-  beta_ocd ~ normal(mu_beta_ocd, .4);
-  beta_eos ~ normal(mu_beta_eos, .4);
   // variance of .4 encodes a general assumption that multiplicative variability  
   // in age, gender and ocd effects across structures is no larger than 2.22
   
@@ -76,44 +68,18 @@ model{
   
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
-             age .* beta_age[ind_str] + gender .* beta_gender[ind_str] +
-             
-             eos .* beta_eos[ind_str] + 
-             
-             ocd .* beta_ocd[ind_str];
+             age .* beta_age[ind_str] + gender .* beta_gender[ind_str];
   
   log_mri ~ normal(mri_pred, sigma[ind_str]);
 }
 generated quantities{
-  array [n_obs] real ppc;
   vector [n_obs] log_lik;
-  vector [n_str] ppd_ctr;
-  vector [n_str] ppd_ocd;
-  vector [n_str] ppd_eos;
-  vector [n_str] exp_beta_ocd = exp(beta_ocd);
-  vector [n_str] exp_beta_eos = exp(beta_eos);
 
-  { real mean_age = mean(age);
-    vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
+  {vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
-                            age .* beta_age[ind_str] + gender .* beta_gender[ind_str] +
-                            
-                            eos .* beta_eos[ind_str] + 
-             
-                            ocd .* beta_ocd[ind_str];
+                            age .* beta_age[ind_str] + gender .* beta_gender[ind_str];
     
-    ppc = normal_rng(mri_pred, sigma[ind_str]);
-  
-    for(n in 1:n_obs){
-      log_lik[n] = normal_lpdf(log_mri[n] | mri_pred[n], sigma[ind_str][n]);}
-  
-  // generating posterior predictive distributions for structures/diagnosis
-  // gender data is encoded +/- .5 random intercepts are based on icv, which is 
-  // centered and both are hence omitted from predictions
-    
-    for(k in 1:n_str){
-       ppd_ctr[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k], sigma[k]));
-       ppd_ocd[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + beta_ocd[k], sigma[k]));
-       ppd_eos[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + beta_eos[k], sigma[k]));}
-       
-}}
+   for(n in 1:n_obs){
+      
+      log_lik[n] = normal_lpdf(log_mri[n] | mri_pred[n], sigma[ind_str][n]);}}
+}
