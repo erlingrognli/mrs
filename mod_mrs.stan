@@ -3,7 +3,7 @@ data{
   array [n_obs] int ind_id, ind_str; // indices of subjects and brain structures
   vector[n_obs] mri;
   vector[n_obs] age;
-  vector[n_obs] gender;
+  vector[n_obs] gender; // gender coded +/- .5
   vector[N] icv;
   vector[n_obs] ocd; // one-hot encoded ocd diagnostic status
   vector[n_obs] eos; // one-hot encoded eos diagnostic status
@@ -22,6 +22,10 @@ parameters{
   real beta_icv;
   real<lower=0> sigma_alpha_id;
   real<lower=0> sigma_alpha_str;
+  real<lower=0> sigma_beta_age;
+  real<lower=0> sigma_beta_gender;
+  real<lower=0> sigma_beta_ocd;
+  real<lower=0> sigma_beta_eos;
   real mu_beta_age;
   real mu_beta_gender;
   real mu_beta_ocd;
@@ -42,36 +46,40 @@ model{
   
 // hyperpriors
   sigma_alpha_id ~ normal(0, .25);
-  // assuming that the average multiplicative deviation from the expectation for 
-  // subject random effect, conditional on intracranial volume, is within 1.6
+// assuming that the average multiplicative deviation from the expectation for 
+// subject random effect, conditional on intracranial volume, is within 1.6
   sigma_alpha_str ~ normal(0, .8);
-  // assuming that the average multiplicative deviation from the mean for the
-  // intercepts for each structure is within 5
+// assuming that the average multiplicative deviation from the mean for the
+// intercepts for each structure is within 5
+  sigma_beta_age ~ lognormal(-1, 1);
+  sigma_beta_gender ~ lognormal(-1, 1);
+  sigma_beta_ocd ~ lognormal(-1, 1);
+  sigma_beta_eos ~ lognormal(-1, 1);
+// assuming that the average multiplicative deviation of effects for 
+// age, gender, ocd and eos acroiss structures is not zero and within 7
   
-  beta_icv ~ normal(0, .4);
-  mu_beta_age ~ normal(0, .4);
-  mu_beta_gender ~ normal(0, .4);
-  mu_beta_ocd ~ normal(0, .4);
-  mu_beta_eos ~ normal(0, .4);
-  // hyperpriors encode an assumption that the average multiplicative effect of 
-  // 0-1 scaled age, gender, ocd and z-score icv across structures 
-  // are between .44 and 2.22 with 95% certainty
+  beta_icv ~ normal(0, .5);
+  mu_beta_age ~ normal(0, .5);
+  mu_beta_gender ~ normal(0, .5);
+  mu_beta_ocd ~ normal(0, .5);
+  mu_beta_eos ~ normal(0, .5);
+// hyperpriors encode an assumption that the average multiplicative effect of 
+// 0-1 scaled age, gender, ocd and z-score icv across structures 
+// are between .44 and 2.22 with 95% certainty
  
 // priors
   alpha_str ~ normal(0, sigma_alpha_str * sigma_alpha_str_multiplier);
-  beta_age ~ normal(mu_beta_age, .4);
-  beta_gender ~ normal(mu_beta_gender, .4);
-  beta_ocd ~ normal(mu_beta_ocd, .4);
-  beta_eos ~ normal(mu_beta_eos, .4);
-  // variance of .4 encodes a general assumption that multiplicative variability  
-  // in age, gender and ocd effects across structures is no larger than 2.22
+  beta_age ~ normal(mu_beta_age, sigma_beta_age);
+  beta_gender ~ normal(mu_beta_gender, sigma_beta_gender);
+  beta_ocd ~ normal(mu_beta_ocd, sigma_beta_ocd);
+  beta_eos ~ normal(mu_beta_eos, sigma_beta_eos);
   
   alpha_id ~ normal(icv * beta_icv, sigma_alpha_id);
-  // individual intercept terms informed by data on intracranial volume
+// individual intercept terms informed by data on intracranial volume
   alpha ~ normal(alpha_params[1], alpha_params[2]);
-  // overall intercept scales the rest of the model parameters, as they are multiplicative
-  // and is supplied as data, to allow for modeling of thickness, volume and area
-  // with same code
+// overall intercept scales the rest of the model parameters, as they are multiplicative
+// and is supplied as data, to allow for modeling of thickness, volume and area
+// with same code
   sigma ~ normal(0, 1);
   
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +

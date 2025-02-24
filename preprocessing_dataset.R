@@ -108,7 +108,9 @@ ocd_ytop <-
                    "Left.Cerebral.White.Matter", "Right.Cerebral.White.Matter",
                    "Brain.Stem", "Left.VentralDC", "Right.VentralDC")))  %>% 
   
-  filter(is.na(age) == F) %>% # remove participant without age data before making id consecutive
+  # remove participant without age data and known MRI artifacts before making id consecutive
+ 
+  filter(is.na(age) == F & SubjID!='1009') %>% 
   
   mutate(id = 1:length(SubjID),
          .keep = 'unused')
@@ -293,3 +295,4 @@ cmdstanr::write_stan_json(
 
 write_rds(file = '~/mrs_data/thickness_plot.rds',
           select(d_t, id, mri, str_name))
+

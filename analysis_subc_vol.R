@@ -22,7 +22,9 @@ png(file = 'pairs_hyper.png',
     res = 100)
 
 mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
-                                    sigma_alpha_str,
+                                    sigma_alpha_str, sigma_beta_age,
+                                    sigma_beta_gender, sigma_beta_ocd,
+                                    sigma_beta_eos,
                                     mu_beta_age, mu_beta_gender,
                                     mu_beta_ocd, mu_beta_eos))
 
@@ -86,6 +88,8 @@ null_fit$cmdstan_diagnose()
 loo_volume <- list(fit$loo(moment_match = TRUE),
                  null_fit$loo(moment_match = TRUE))
 
+write_rds(loo_volume, file = '~/mrs/loo_volume.rds')
+
 # plot model estimates
 
 png(file = 'ocd_betas.png',
@@ -134,42 +138,67 @@ fit$draws(variables = 'exp_beta_eos') %>%
   
   dev.off()
   
+png(file = 'gender_betas.png', 
+    width = 20,
+    height = 20,
+    units = 'cm',
+    res = 200)
+
+fit$draws(variables = 'beta_gender', format = 'draws_df') %>%
+  
+  mutate(across(starts_with('beta_gender'), exp)) %>%
+  
+  rename_variables('Amygdala' = 'beta_gender[1]',
+                   'Hippocampus' = 'beta_gender[2]',
+                   'Accumbens(area)' = 'beta_gender[3]',
+                   'Putamen' = 'beta_gender[4]',
+                   'Lateral Ventricle' = 'beta_gender[5]',
+                   'Pallidum' = 'beta_gender[6]',
+                   'Caudate' = 'beta_gender[7]',
+                   'Thalamus' = 'beta_gender[8]') %>%
+  
+  mcmc_areas() +
+  labs(title = 'Multiplicative differences by gender, female compared to male participants (posterior distributions)', 
+       subtitle = 'Ajusted for age, diagnosis and intracranial volume' ) +
+  vline_at(1)
+
+dev.off()
+  
 str_names <- levels(fct_recode(d$str_name, 'Accumbens (area)' = 'Accumbens.area', 'Lateral Ventricle' = 'Lateral.Ventricle'))
 
 ppd <- 
   
   bind_rows(
-    fit$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
     fit$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
+    fit$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
     fit$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
     .id = 'dx') %>%
   
   select(!c(.chain, .iteration, .draw)) %>%
   
-  mutate(Diagnosis = fct_recode(as_factor(dx), Control = '1', OCD = '2', EOS = '3'), .keep = 'unused') %>%
+  mutate(Diagnosis = fct_recode(as_factor(dx),  OCD = '1', Control = '2', EOS = '3'), .keep = 'unused') %>%
   
   pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'volume')
 
-png(file = 'ppd.png',
+png(file = 'ppd_volume.png',
   width = 30,
-  height = 30,
+  height = 20,
   units = 'cm',
-  res = 200)
+  res = 400)
 
-ggplot(data = ppd, aes(x = volume, 
-                       colour = Diagnosis,
-                       fill = Diagnosis)) + 
-  geom_density(alpha = .4) + 
-  scale_fill_discrete() + 
+ggplot(data = ppd, aes(y = volume, x = Diagnosis)) + 
+  geom_violin(alpha = .4, 
+              draw_quantiles = c(.05, .5, .95),
+              aes(fill = Diagnosis)) + 
+  viridis::scale_fill_viridis(discrete = TRUE) +
   labs(title = 'Posterior predictive distributions across subcortical structures', 
-       x = 'Measurements in cubic/square millimeters',
-       y = NULL) + 
-  theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank()) + 
+       x = NULL,
+       y = 'Measurements in cubic/square millimeters') + 
+  theme(legend.position = 'none') + 
   facet_wrap(vars(structure), scales = 'free')
 
 dev.off()
 
 setwd('~/mrs')
 
-fit$summary(variables = c('mu_beta_gender', 'mu_beta_age', 'beta_icv'))
+fit$summary(variables = c('mu_beta_gender', 'sigma_beta_gender', 'mu_beta_age', 'sigma_beta_age', 'beta_icv'))

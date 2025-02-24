@@ -22,6 +22,8 @@ parameters{
   real beta_icv;
   real<lower=0> sigma_alpha_id;
   real<lower=0> sigma_alpha_str;
+  real<lower=0> sigma_beta_age;
+  real<lower=0> sigma_beta_gender;
   real mu_beta_age;
   real mu_beta_gender;
 // parameters
@@ -43,7 +45,8 @@ model{
   sigma_alpha_str ~ normal(0, .8);
   // assuming that the average multiplicative deviation from the mean for the
   // intercepts for each structure is within 5
-  
+  sigma_beta_age ~ lognormal(-1, 1);
+  sigma_beta_gender ~ lognormal(-1, 1);
   beta_icv ~ normal(0, .4);
   mu_beta_age ~ normal(0, .4);
   mu_beta_gender ~ normal(0, .4);
@@ -53,8 +56,8 @@ model{
  
 // priors
   alpha_str ~ normal(0, sigma_alpha_str * sigma_alpha_str_multiplier);
-  beta_age ~ normal(mu_beta_age, .4);
-  beta_gender ~ normal(mu_beta_gender, .4);
+  beta_age ~ normal(mu_beta_age, sigma_beta_age);
+  beta_gender ~ normal(mu_beta_gender, sigma_beta_gender);
   // variance of .4 encodes a general assumption that multiplicative variability  
   // in age, gender and ocd effects across structures is no larger than 2.22
   
