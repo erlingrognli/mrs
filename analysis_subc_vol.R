@@ -3,7 +3,7 @@ library(cmdstanr); library(bayesplot); library(posterior)
 options(posterior.digits = 2,
         mc.cores = 4)
 
-m <- cmdstan_model('mod_mrs.stan')
+m <- cmdstan_model('~/mrs/mod_mrs.stan')
 
 fit <- m$sample(data = '~/mrs_data/volume.json', 
                 iter_sampling = 1000,
@@ -75,95 +75,128 @@ png(file = 'pit_ecdf.png',
                      plot_diff = TRUE)
 dev.off()
 
-# comparing with null model using loo
+# loo-pit plot
 
-m_null <- cmdstan_model('~/mrs/null_mod_mrs.stan')
-
-null_fit <- m_null$sample(data = '~/mrs_data/volume.json', 
-                          iter_sampling = 1000, 
-                          sig_figs = 9)
-
-null_fit$cmdstan_diagnose()
-
-loo_volume <- list(fit$loo(moment_match = TRUE),
-                 null_fit$loo(moment_match = TRUE))
+loo_volume <- fit$loo(moment_match = TRUE, 
+                      save_psis = TRUE)
 
 write_rds(loo_volume, file = '~/mrs/loo_volume.rds')
 
+png(file = 'loo_pit_volume.png',
+    width = 12,
+    height = 12,
+    units = 'cm',
+    res = 100)
+
+ppc_loo_pit_overlay(log(d$mri), 
+                    yrep = ppc_draws,
+                    psis_object = loo_volume$psis_object)
+dev.off()
+
 # plot model estimates
 
-png(file = 'ocd_betas.png',
+png(file = 'ocd_betas_volume.png',
     width = 20,
     height = 20,
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'exp_beta_ocd') %>%
+fit$draws(variables = 'beta_ocd', format = 'draws_df') %>%
   
-  rename_variables('Amygdala' = 'exp_beta_ocd[1]', 
-                   'Hippocampus' = 'exp_beta_ocd[2]',
-                   'Accumbens(area)' = 'exp_beta_ocd[3]',
-                   'Putamen' = 'exp_beta_ocd[4]',
-                   'Lateral Ventricle' = 'exp_beta_ocd[5]',
-                   'Pallidum' = 'exp_beta_ocd[6]',
-                   'Caudate' = 'exp_beta_ocd[7]',
-                   'Thalamus' = 'exp_beta_ocd[8]') %>%
+  mutate(across(starts_with('beta_ocd'), exp)) %>%
+  
+  rename_variables('Amygdala' = 'beta_ocd[1]', 
+                   'Hippocampus' = 'beta_ocd[2]',
+                   'Accumbens(area)' = 'beta_ocd[3]',
+                   'Putamen' = 'beta_ocd[4]',
+                   'Lateral Ventricle' = 'beta_ocd[5]',
+                   'Pallidum' = 'beta_ocd[6]',
+                   'Caudate' = 'beta_ocd[7]',
+                   'Thalamus' = 'beta_ocd[8]') %>%
   mcmc_areas() +
-  labs(title = 'Multiplicative effect of OCD (posterior distributions)', 
+  labs(title = 'Multiplicative effect of OCD on subcortical volumes', 
        subtitle = 'Ajusted for age, gender and intracranial volume' ) + 
   vline_at(1)
 
   dev.off()
 
-png(file = 'eos_betas.png',
+png(file = 'eos_betas_volume.png',
       width = 20,
       height = 20,
       units = 'cm',
       res = 200)
 
-fit$draws(variables = 'exp_beta_eos') %>%
+fit$draws(variables = 'beta_eos', format = 'draws_df') %>%
+  
+    mutate(across(starts_with('beta_eos'), exp)) %>%
     
-    rename_variables('Amygdala' = 'exp_beta_eos[1]',
-                     'Hippocampus' = 'exp_beta_eos[2]',
-                     'Accumbens(area)' = 'exp_beta_eos[3]',
-                     'Putamen' = 'exp_beta_eos[4]',
-                     'Lateral Ventricle' = 'exp_beta_eos[5]',
-                     'Pallidum' = 'exp_beta_eos[6]',
-                     'Caudate' = 'exp_beta_eos[7]',
-                     'Thalamus' = 'exp_beta_eos[8]') %>%
+    rename_variables('Amygdala' = 'beta_eos[1]',
+                     'Hippocampus' = 'beta_eos[2]',
+                     'Accumbens(area)' = 'beta_eos[3]',
+                     'Putamen' = 'beta_eos[4]',
+                     'Lateral Ventricle' = 'beta_eos[5]',
+                     'Pallidum' = 'beta_eos[6]',
+                     'Caudate' = 'beta_eos[7]',
+                     'Thalamus' = 'beta_eos[8]') %>%
     mcmc_areas() +
-    labs(title = 'Multiplicative effect of EOS (posterior distributions)', 
+    labs(title = 'Multiplicative effect of EOS on subcortical volumes', 
          subtitle = 'Ajusted for age, gender and intracranial volume' ) +
     vline_at(1)
   
   dev.off()
   
-png(file = 'gender_betas.png', 
+png(file = 'female_betas_volume.png', 
     width = 20,
     height = 20,
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'beta_gender', format = 'draws_df') %>%
+fit$draws(variables = 'beta_female', format = 'draws_df') %>%
   
-  mutate(across(starts_with('beta_gender'), exp)) %>%
+  mutate(across(starts_with('beta_female'), exp)) %>%
   
-  rename_variables('Amygdala' = 'beta_gender[1]',
-                   'Hippocampus' = 'beta_gender[2]',
-                   'Accumbens(area)' = 'beta_gender[3]',
-                   'Putamen' = 'beta_gender[4]',
-                   'Lateral Ventricle' = 'beta_gender[5]',
-                   'Pallidum' = 'beta_gender[6]',
-                   'Caudate' = 'beta_gender[7]',
-                   'Thalamus' = 'beta_gender[8]') %>%
+  rename_variables('Amygdala' = 'beta_female[1]',
+                   'Hippocampus' = 'beta_female[2]',
+                   'Accumbens(area)' = 'beta_female[3]',
+                   'Putamen' = 'beta_female[4]',
+                   'Lateral Ventricle' = 'beta_female[5]',
+                   'Pallidum' = 'beta_female[6]',
+                   'Caudate' = 'beta_female[7]',
+                   'Thalamus' = 'beta_female[8]') %>%
   
   mcmc_areas() +
-  labs(title = 'Multiplicative differences by gender, female compared to male participants (posterior distributions)', 
+  labs(title = 'Multiplicative effect of female gender on subcortical volumes', 
        subtitle = 'Ajusted for age, diagnosis and intracranial volume' ) +
   vline_at(1)
 
 dev.off()
+
+png(file = 'age_betas_volume.png', 
+    width = 20,
+    height = 20,
+    units = 'cm',
+    res = 200)
+
+fit$draws(variables = 'beta_age', format = 'draws_df') %>%
   
+  mutate(across(starts_with('beta_age'), exp)) %>%
+  
+  rename_variables('Amygdala' = 'beta_age[1]',
+                   'Hippocampus' = 'beta_age[2]',
+                   'Accumbens(area)' = 'beta_age[3]',
+                   'Putamen' = 'beta_age[4]',
+                   'Lateral Ventricle' = 'beta_age[5]',
+                   'Pallidum' = 'beta_age[6]',
+                   'Caudate' = 'beta_age[7]',
+                   'Thalamus' = 'beta_age[8]') %>%
+  
+  mcmc_areas() +
+  labs(title = 'Multiplicative effect of aging 7.3 years from 11.5 on subcortical volumes', 
+       subtitle = 'Ajusted for age, diagnosis and intracranial volume' ) +
+  vline_at(1)
+
+dev.off()
+
 str_names <- levels(fct_recode(d$str_name, 'Accumbens (area)' = 'Accumbens.area', 'Lateral Ventricle' = 'Lateral.Ventricle'))
 
 ppd <- 
@@ -200,5 +233,3 @@ ggplot(data = ppd, aes(y = volume, x = Diagnosis)) +
 dev.off()
 
 setwd('~/mrs')
-
-fit$summary(variables = c('mu_beta_gender', 'sigma_beta_gender', 'mu_beta_age', 'sigma_beta_age', 'beta_icv'))

@@ -137,7 +137,6 @@ d_v <- pivot_longer(ocd_ytop, cols = !c(id, female, age, ocd, eos, sbTIV),
   
   mutate(str_name = str_replace_all(str_name, c('[lr]h_' = '', 'Left.' = '', 'Right.' = '')),
          age_std = (age - min(age))/(max(age) - min(age)),
-         gender = ifelse(female == 1, 0.5, -0.5),
          sbTIV = NULL,
          .keep = 'all') %>%
   
@@ -175,7 +174,7 @@ cmdstanr::write_stan_json(
     mri = d_v$mri,
     icv = icv,
     age = d_v$age_std,
-    gender = d_v$gender,
+    female = d_v$female,
     ocd = d_v$ocd,
     eos = d_v$eos,
     alpha_params = c(8, .1)))
@@ -193,7 +192,6 @@ d_a <- pivot_longer(ocd_ytop, cols = !c(id, female, age, ocd, eos, sbTIV),
   
   mutate(str_name = str_replace_all(str_name, c('[lr]h_' = '', 'Left.' = '', 'Right.' = '')),
          age_std = (age - min(age))/(max(age) - min(age)),
-         gender = ifelse(female == 1, 0.5, -0.5),
          sbTIV = NULL,
          .keep = 'all') %>%
   
@@ -230,7 +228,7 @@ cmdstanr::write_stan_json(
     mri = d_a$mri,
     icv = icv,
     age = d_a$age_std,
-    gender = d_a$gender,
+    female = d_a$female,
     ocd = d_a$ocd,
     eos = d_a$eos,
     alpha_params = c(9, .5)))
@@ -248,7 +246,6 @@ d_t <- pivot_longer(ocd_ytop, cols = !c(id, female, age, ocd, eos, sbTIV),
   
   mutate(str_name = str_replace_all(str_name, c('[lr]h_' = '', 'Left.' = '', 'Right.' = '')),
          age_std = (age - min(age))/(max(age) - min(age)),
-         gender = ifelse(female == 1, 0.5, -0.5),
          sbTIV = NULL,
          .keep = 'all') %>%
   
@@ -286,7 +283,7 @@ cmdstanr::write_stan_json(
     mri = d_t$mri,
     icv = icv,
     age = d_t$age_std,
-    gender = d_t$gender,
+    female = d_t$female,
     ocd = d_t$ocd,
     eos = d_t$eos,
     alpha_params = c(.9, .2)))

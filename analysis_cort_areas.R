@@ -21,9 +21,9 @@ png(file = 'pairs_hyper.png',
 
 mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
                                     sigma_alpha_str, sigma_beta_age,
-                                    sigma_beta_gender, sigma_beta_ocd,
+                                    sigma_beta_female, sigma_beta_ocd,
                                     sigma_beta_eos,
-                                    mu_beta_age, mu_beta_gender,
+                                    mu_beta_age, mu_beta_female,
                                     mu_beta_ocd, mu_beta_eos), 
            np = np,
            max_treedepth = 12)
@@ -75,20 +75,25 @@ png(file = 'pit_ecdf_area.png',
                      plot_diff = TRUE)
 dev.off()
 
-# compare with model without predictors using loo
 
-m_null <- cmdstan_model('~/mrs/null_mod_mrs.stan')
+# diagnostics using loo and loo-pit-plot
 
-null_fit <- m_null$sample(data = '~/mrs_data/area.json', 
-                          iter_sampling = 1000, 
-                          sig_figs = 9)
-
-null_fit$cmdstan_diagnose()
-
-loo_area <- list(fit$loo(moment_match = TRUE),
-                 null_fit$loo(moment_match = TRUE))
+loo_area <- fit$loo(moment_match = TRUE, 
+                    save_psis = TRUE)
 
 write_rds(loo_area, file = '~/mrs/loo_area.rds')
+
+png(file = 'loo_pit_area.png',
+    width = 12,
+    height = 12,
+    units = 'cm',
+    res = 100)
+
+ppc_loo_pit_overlay(log(d$mri), 
+                    yrep = ppc_draws,
+                    psis_object = loo_area$psis_object)
+dev.off()
+
 
 # plot estimates from model
 
@@ -98,15 +103,17 @@ png(file = 'ocd_betas_area.png',
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'exp_beta_ocd') %>%
+fit$draws(variables = 'beta_ocd', format = 'draws_df') %>%
   
-  rename_variables('Frontal cortex' = 'exp_beta_ocd[1]', 
-                   'Parietal cortex' = 'exp_beta_ocd[2]',
-                   'Temporal cortex' = 'exp_beta_ocd[3]',
-                   'Occipital cortex' = 'exp_beta_ocd[4]',
-                   'Cingulate cortex' = 'exp_beta_ocd[5]') %>%
+  mutate(across(starts_with('beta_ocd'), exp)) %>%
+  
+  rename_variables('Frontal cortex' = 'beta_ocd[1]', 
+                   'Parietal cortex' = 'beta_ocd[2]',
+                   'Temporal cortex' = 'beta_ocd[3]',
+                   'Occipital cortex' = 'beta_ocd[4]',
+                   'Cingulate cortex' = 'beta_ocd[5]') %>%
   mcmc_areas() +
-  labs(title = 'Multiplicative effect of OCD (posterior distributions)', 
+  labs(title = 'Multiplicative effect of OCD on cortical lobe area',
        subtitle = 'Ajusted for age, gender and intracranial volume' ) + 
   vline_at(1)
 
@@ -118,39 +125,64 @@ png(file = 'eos_betas_area.png',
       units = 'cm',
       res = 200)
 
-fit$draws(variables = 'exp_beta_eos') %>%
+fit$draws(variables = 'beta_eos', format = 'draws_df') %>%
+  
+    mutate(across(starts_with('beta_eos'), exp)) %>%
     
-    rename_variables('Frontal cortex' = 'exp_beta_eos[1]', 
-                     'Parietal cortex' = 'exp_beta_eos[2]',
-                     'Temporal cortex' = 'exp_beta_eos[3]',
-                     'Occipital cortex' = 'exp_beta_eos[4]',
-                     'Cingulate cortex' = 'exp_beta_eos[5]') %>%
+    rename_variables('Frontal cortex' = 'beta_eos[1]', 
+                     'Parietal cortex' = 'beta_eos[2]',
+                     'Temporal cortex' = 'beta_eos[3]',
+                     'Occipital cortex' = 'beta_eos[4]',
+                     'Cingulate cortex' = 'beta_eos[5]') %>%
     mcmc_areas() +
-    labs(title = 'Multiplicative effect of EOS (posterior distributions)', 
+    labs(title = 'Multiplicative effect of EOS on cortical lobe area', 
          subtitle = 'Ajusted for age, gender and intracranial volume' ) +
     vline_at(1)
   
   dev.off()
   
-  png(file = 'gender_betas_area.png', 
+png(file = 'female_betas_area.png', 
       width = 20,
       height = 20,
       units = 'cm',
       res = 200)
   
-  fit$draws(variables = 'beta_gender', format = 'draws_df') %>%
+  fit$draws(variables = 'beta_female', format = 'draws_df') %>%
     
-    mutate(across(starts_with('beta_gender'), exp)) %>%
+    mutate(across(starts_with('beta_female'), exp)) %>%
     
-    rename_variables('Frontal cortex' = 'beta_gender[1]', 
-                     'Parietal cortex' = 'beta_gender[2]',
-                     'Temporal cortex' = 'beta_gender[3]',
-                     'Occipital cortex' = 'beta_gender[4]',
-                     'Cingulate cortex' = 'beta_gender[5]') %>%
+    rename_variables('Frontal cortex' = 'beta_female[1]', 
+                     'Parietal cortex' = 'beta_female[2]',
+                     'Temporal cortex' = 'beta_female[3]',
+                     'Occipital cortex' = 'beta_female[4]',
+                     'Cingulate cortex' = 'beta_female[5]') %>%
     
     mcmc_areas() +
-    labs(title = 'Multiplicative differences by gender, female compared to male participants (posterior distributions)', 
+    labs(title = 'Multiplicative effect of female gender on cortical lobe area',
          subtitle = 'Ajusted for age, diagnosis and intracranial volume' ) +
+    vline_at(1)
+  
+  dev.off()
+  
+png(file = 'age_betas_area.png', 
+      width = 20,
+      height = 20,
+      units = 'cm',
+      res = 200)
+  
+  fit$draws(variables = 'beta_age', format = 'draws_df') %>%
+    
+    mutate(across(starts_with('beta_age'), exp)) %>%
+    
+    rename_variables('Frontal cortex' = 'beta_age[1]', 
+                     'Parietal cortex' = 'beta_age[2]',
+                     'Temporal cortex' = 'beta_age[3]',
+                     'Occipital cortex' = 'beta_age[4]',
+                     'Cingulate cortex' = 'beta_age[5]') %>%
+    
+    mcmc_areas() +
+    labs(title = 'Multiplicative effect of aging 7.3 years from 11.5 on cortical lobe area',
+         subtitle = 'Ajusted for gender, diagnosis and intracranial volume') +
     vline_at(1)
   
   dev.off()
@@ -187,7 +219,7 @@ ggplot(data = ppd, aes(x = Diagnosis, y = volume,
   geom_violin(alpha = .4,
               draw_quantiles = c(.05, .5, .95)) + 
   viridis::scale_fill_viridis(discrete = TRUE) +
-  labs(title = 'Posterior predictive distributions across cortical areas', 
+  labs(title = 'Posterior predictive distributions of cortical lobe areas', 
        x = NULL,
        y = 'Measurements in square millimeters') + 
   theme(legend.position = 'none') + 

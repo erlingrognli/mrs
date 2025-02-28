@@ -22,7 +22,7 @@ png(file = 'pairs_hyper.png',
 
 mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
                                     sigma_alpha_str,
-                                    mu_beta_age, mu_beta_gender,
+                                    mu_beta_age, mu_beta_female,
                                     mu_beta_ocd, mu_beta_eos))
 
 dev.off()
@@ -72,23 +72,25 @@ png(file = 'pit_ecdf_thickness.png',
                      plot_diff = TRUE)
 dev.off()
 
-setwd('~/mrs')
+# loo-pit plot
 
-# compare with model without predictors using loo
+loo_thickness <- fit$loo(moment_match = TRUE,
+                                  save_psis = TRUE)
 
-m_null <- cmdstan_model('null_mod_mrs.stan')
+write_rds(loo_thickness, file = '~/mrs/loo_thickness.rds')
 
-null_fit <- m_null$sample(data = '~/mrs_data/thickness.json',
-                          sig_figs = 9)
+png(file = 'loo_pit_thickness.png',
+    width = 12,
+    height = 12,
+    units = 'cm',
+    res = 100)
 
-null_fit$cmdstan_diagnose()
-
-loo_thickness <- list(fit$loo(moment_match = TRUE),
-                   null_fit$loo(moment_match = TRUE))
+ppc_loo_pit_overlay(log(d$mri), 
+                     yrep = ppc_draws,
+                     psis_object = loo_thickness$psis_object)
+dev.off()
 
 # plot estimates from model
-
-setwd('~/mrs/plots/thickness')
 
 png(file = 'ocd_betas_thickness.png',
     width = 20,
@@ -96,16 +98,18 @@ png(file = 'ocd_betas_thickness.png',
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'exp_beta_ocd') %>%
+  fit$draws(variables = 'beta_ocd', format = 'draws_df') %>%
+    
+   mutate(across(starts_with('beta_ocd'), exp)) %>%
   
-  rename_variables('Frontal cortex' = 'exp_beta_ocd[1]', 
-                   'Parietal cortex' = 'exp_beta_ocd[2]',
-                   'Temporal cortex' = 'exp_beta_ocd[3]',
-                   'Occipital cortex' = 'exp_beta_ocd[4]',
-                   'Cingulate cortex' = 'exp_beta_ocd[5]') %>%
+   rename_variables('Frontal cortex' = 'beta_ocd[1]', 
+                   'Parietal cortex' = 'beta_ocd[2]',
+                   'Temporal cortex' = 'beta_ocd[3]',
+                   'Occipital cortex' = 'beta_ocd[4]',
+                   'Cingulate cortex' = 'beta_ocd[5]') %>%
   mcmc_areas() +
-  labs(title = 'Multiplicative effect of OCD on cortical thickness (posterior distributions)', 
-       subtitle = 'Ajusted for age, gender and intracranial volume' ) + 
+  labs(title = 'Multiplicative effect of OCD on cortical thickness per lobe', 
+       subtitle = 'Ajusted for age, gender and intracranial volume') + 
   vline_at(1)
 
   dev.off()
@@ -116,42 +120,67 @@ png(file = 'eos_betas_thickness.png',
       units = 'cm',
       res = 200)
 
-fit$draws(variables = 'exp_beta_eos') %>%
+  fit$draws(variables = 'beta_eos', format = 'draws_df') %>%
     
-    rename_variables('Frontal cortex' = 'exp_beta_eos[1]', 
-                     'Parietal cortex' = 'exp_beta_eos[2]',
-                     'Temporal cortex' = 'exp_beta_eos[3]',
-                     'Occipital cortex' = 'exp_beta_eos[4]',
-                     'Cingulate cortex' = 'exp_beta_eos[5]') %>%
+    mutate(across(starts_with('beta_eos'), exp)) %>%
+    
+    rename_variables('Frontal cortex' = 'beta_eos[1]', 
+                     'Parietal cortex' = 'beta_eos[2]',
+                     'Temporal cortex' = 'beta_eos[3]',
+                     'Occipital cortex' = 'beta_eos[4]',
+                     'Cingulate cortex' = 'beta_eos[5]') %>%
     mcmc_areas() +
-    labs(title = 'Multiplicative effect of EOS on cortical thickness (posterior distributions)', 
+    labs(title = 'Multiplicative effect of EOS on cortical thickness per lobe', 
          subtitle = 'Ajusted for age, gender and intracranial volume' ) +
     vline_at(1)
   
   dev.off()
   
-  png(file = 'gender_betas_thickness.png', 
+png(file = 'female_betas_thickness.png', 
       width = 20,
       height = 20,
       units = 'cm',
       res = 200)
   
-  fit$draws(variables = 'beta_gender', format = 'draws_df') %>%
+  fit$draws(variables = 'beta_female', format = 'draws_df') %>%
     
-    mutate(across(starts_with('beta_gender'), exp)) %>%
+    mutate(across(starts_with('beta_female'), exp)) %>%
     
-    rename_variables('Frontal cortex' = 'beta_gender[1]', 
-                     'Parietal cortex' = 'beta_gender[2]',
-                     'Temporal cortex' = 'beta_gender[3]',
-                     'Occipital cortex' = 'beta_gender[4]',
-                     'Cingulate cortex' = 'beta_gender[5]') %>%
+    rename_variables('Frontal cortex' = 'beta_female[1]', 
+                     'Parietal cortex' = 'beta_female[2]',
+                     'Temporal cortex' = 'beta_female[3]',
+                     'Occipital cortex' = 'beta_female[4]',
+                     'Cingulate cortex' = 'beta_female[5]') %>%
     
     mcmc_areas() +
-    labs(title = 'Multiplicative differences by gender, female compared to male participants (posterior distributions)', 
+    labs(title = 'Multiplicative effect of female gender on cortical thickness per lobe', 
          subtitle = 'Ajusted for age, diagnosis and intracranial volume' ) +
     vline_at(1)
   
   dev.off()
+
+png(file = 'age_betas_thickness.png', 
+      width = 20,
+      height = 20,
+      units = 'cm',
+      res = 200)
+  
+  fit$draws(variables = 'beta_age', format = 'draws_df') %>%
+    
+    mutate(across(starts_with('beta_age'), exp)) %>%
+    
+    rename_variables('Frontal cortex' = 'beta_age[1]', 
+                     'Parietal cortex' = 'beta_age[2]',
+                     'Temporal cortex' = 'beta_age[3]',
+                     'Occipital cortex' = 'beta_age[4]',
+                     'Cingulate cortex' = 'beta_age[5]') %>%
+    
+    mcmc_areas() +
+    labs(title = 'Multiplicative effect of aging 7.3 years from 11.5 on cortical thickness per lobe',
+         subtitle = 'Ajusted for gender, diagnosis and intracranial volume') +
+    vline_at(1)
+  
+dev.off()
   
 str_names <- levels(fct_recode(d$str_name, 
                                'Frontal cortex' = 'frontal_thickness', 
@@ -163,14 +192,14 @@ str_names <- levels(fct_recode(d$str_name,
 ppd <- 
   
   bind_rows(
-    fit$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
     fit$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
+    fit$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
     fit$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
     .id = 'Diagnosis') %>%
   
   select(!c(.chain, .iteration, .draw)) %>%
   
-  mutate(Diagnosis = fct_recode(as_factor(Diagnosis), Control = '1', OCD = '2', EOS = '3'), .keep = 'unused') %>%
+  mutate(Diagnosis = fct_recode(as_factor(Diagnosis), OCD = '1', Control = '2', EOS = '3'), .keep = 'unused') %>%
   
   pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'volume')
 
@@ -185,11 +214,10 @@ ggplot(data = ppd, aes(x = Diagnosis, y = volume,
   geom_violin(alpha = .4,
               draw_quantiles = c(.05, .5, .95)) + 
   viridis::scale_fill_viridis(discrete = TRUE) +
-  labs(title = 'Posterior predictive distributions of thickness across cortical areas', 
+  labs(title = 'Posterior predictive distributions of cortical thickness across lobes', 
        y = NULL,
        x = 'Measurements in millimeters') + 
   theme(legend.position = 'none') + 
   facet_wrap(vars(structure), scales = 'free')
 
 dev.off()
-

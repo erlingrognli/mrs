@@ -3,7 +3,7 @@ data{
   array [n_obs] int ind_id, ind_str; // indices of subjects and brain structures
   vector[n_obs] mri;
   vector[n_obs] age;
-  vector[n_obs] gender; // gender coded +/- .5
+  vector[n_obs] female; // one-hot encoded female gender
   vector[N] icv;
   vector[n_obs] ocd; // one-hot encoded ocd diagnostic status
   vector[n_obs] eos; // one-hot encoded eos diagnostic status
@@ -23,18 +23,18 @@ parameters{
   real<lower=0> sigma_alpha_id;
   real<lower=0> sigma_alpha_str;
   real<lower=0> sigma_beta_age;
-  real<lower=0> sigma_beta_gender;
+  real<lower=0> sigma_beta_female;
   real<lower=0> sigma_beta_ocd;
   real<lower=0> sigma_beta_eos;
   real mu_beta_age;
-  real mu_beta_gender;
+  real mu_beta_female;
   real mu_beta_ocd;
   real mu_beta_eos;
 // parameters
   real alpha;
   vector<lower=0>[n_str] sigma;
   vector[n_str] beta_age;
-  vector[n_str] beta_gender;
+  vector[n_str] beta_female;
   vector[n_str] beta_ocd;
   vector[n_str] beta_eos;
   vector[N] alpha_id;
@@ -52,15 +52,15 @@ model{
 // assuming that the average multiplicative deviation from the mean for the
 // intercepts for each structure is within 5
   sigma_beta_age ~ lognormal(-1, 1);
-  sigma_beta_gender ~ lognormal(-1, 1);
+  sigma_beta_female ~ lognormal(-1, 1);
   sigma_beta_ocd ~ lognormal(-1, 1);
   sigma_beta_eos ~ lognormal(-1, 1);
 // assuming that the average multiplicative deviation of effects for 
-// age, gender, ocd and eos acroiss structures is not zero and within 7
+// age, female gender, ocd and eos acroiss structures is not zero and within 7
   
   beta_icv ~ normal(0, .5);
   mu_beta_age ~ normal(0, .5);
-  mu_beta_gender ~ normal(0, .5);
+  mu_beta_female ~ normal(0, .5);
   mu_beta_ocd ~ normal(0, .5);
   mu_beta_eos ~ normal(0, .5);
 // hyperpriors encode an assumption that the average multiplicative effect of 
@@ -70,7 +70,7 @@ model{
 // priors
   alpha_str ~ normal(0, sigma_alpha_str * sigma_alpha_str_multiplier);
   beta_age ~ normal(mu_beta_age, sigma_beta_age);
-  beta_gender ~ normal(mu_beta_gender, sigma_beta_gender);
+  beta_female ~ normal(mu_beta_female, sigma_beta_female);
   beta_ocd ~ normal(mu_beta_ocd, sigma_beta_ocd);
   beta_eos ~ normal(mu_beta_eos, sigma_beta_eos);
   
@@ -84,7 +84,7 @@ model{
   
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
-             age .* beta_age[ind_str] + gender .* beta_gender[ind_str] +
+             age .* beta_age[ind_str] + female .* beta_female[ind_str] +
              
              eos .* beta_eos[ind_str] + 
              
@@ -98,13 +98,13 @@ generated quantities{
   vector [n_str] ppd_ctr;
   vector [n_str] ppd_ocd;
   vector [n_str] ppd_eos;
-  vector [n_str] exp_beta_ocd = exp(beta_ocd);
-  vector [n_str] exp_beta_eos = exp(beta_eos);
 
   { real mean_age = mean(age);
+    real female_prop = sum(female)/n_obs;
+    
     vector[n_obs] mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
-                            age .* beta_age[ind_str] + gender .* beta_gender[ind_str] +
+                            age .* beta_age[ind_str] + female .* beta_female[ind_str] +
                             
                             eos .* beta_eos[ind_str] + 
              
@@ -116,12 +116,10 @@ generated quantities{
       log_lik[n] = normal_lpdf(log_mri[n] | mri_pred[n], sigma[ind_str][n]);}
   
   // generating posterior predictive distributions for structures/diagnosis
-  // gender data is encoded +/- .5 random intercepts are based on icv, which is 
-  // centered and both are hence omitted from predictions
+  // subject random intercepts are centered 
     
     for(k in 1:n_str){
-       ppd_ctr[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k], sigma[k]));
-       ppd_ocd[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + beta_ocd[k], sigma[k]));
-       ppd_eos[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + beta_eos[k], sigma[k]));}
-       
+       ppd_ctr[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + female_prop * beta_female[k], sigma[k]));
+       ppd_ocd[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + female_prop * beta_female[k] + beta_ocd[k], sigma[k]));
+       ppd_eos[k] = exp(normal_rng(alpha + alpha_str[k] + mean_age * beta_age[k] + female_prop * beta_female[k] + beta_eos[k], sigma[k]));}
 }}
