@@ -3,15 +3,15 @@ library(cmdstanr); library(tidyverse); library(ggplot2); library(bayesplot); lib
 options(posterior.digits = 2,
         mc.cores = 4)
 
-m <- cmdstan_model('mod_mrs.stan', compile_model_methods = TRUE)
+m <- cmdstan_model('~/mrs/mod_mrs.stan', compile_model_methods = TRUE)
 
-fit <- m$sample(data = '~/mrs_data/area.json', iter_sampling = 1000, sig_figs = 9)
+fit_area <- m$sample(data = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/area.json', iter_sampling = 1000, sig_figs = 9)
 
-fit$cmdstan_diagnose()
+fit_area$cmdstan_diagnose()
 
 setwd('~/mrs/plots/area')
 
-np <- nuts_params(fit)
+np <- nuts_params(fit_area)
 
 png(file = 'pairs_hyper.png',
     width = 45,
@@ -19,7 +19,7 @@ png(file = 'pairs_hyper.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
+mcmc_pairs(fit_area$draws(), pars = vars(beta_icv, sigma_alpha_id,
                                     sigma_alpha_str, sigma_beta_age,
                                     sigma_beta_female, sigma_beta_ocd,
                                     sigma_beta_eos,
@@ -36,10 +36,28 @@ png(file = 'pairs_icpt.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars('alpha', 'beta_icv', 'sigma_alpha_id', 'sigma_alpha_str', starts_with('alpha_str'),
+mcmc_pairs(fit_area$draws(), pars = vars('alpha', 'beta_icv', 'sigma_alpha_id', 'sigma_alpha_str', starts_with('alpha_str'),
                                     'alpha_id[10]', 'alpha_id[15]', 'alpha_id[30]'))
 
 dev.off()
+
+estimates <- fit_area$draws(format = 'draws_df') %>%
+  
+  select(starts_with('beta_'), starts_with('sigma'), starts_with('mu')) %>%
+  
+  mutate(across(everything(), exp)) %>%
+  
+  summarise_draws(.num_args = list(digits = 2)) %>%
+  
+  mutate(variable = str_replace_all(variable, 
+                                    c('\\[1\\]' = '_frontal',
+                                      '\\[2\\]' = '_parietal',
+                                      '\\[3\\]' = '_temporal',
+                                      '\\[4\\]' = '_occipital',
+                                      '\\[5\\]' = '_cingulate')))
+
+write.csv(estimates, file = '~/mrs/area_estimates.csv')
+
 
 # graphical posterior predictive checking
 
@@ -47,7 +65,7 @@ bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
 
 d <- read_rds('~/mrs_data/area_plot.rds')
 
-ppc_draws <- fit$draws(variables = 'ppc', format = 'draws_matrix')
+ppc_draws <- fit_area$draws(variables = 'ppc', format = 'draws_matrix')
 
 png(file = 'violin_ppc_area.png',
     width = 30,
@@ -78,7 +96,7 @@ dev.off()
 
 # diagnostics using loo and loo-pit-plot
 
-loo_area <- fit$loo(moment_match = TRUE, 
+loo_area <- fit_area$loo(moment_match = TRUE, 
                     save_psis = TRUE)
 
 write_rds(loo_area, file = '~/mrs/loo_area.rds')
@@ -103,7 +121,7 @@ png(file = 'ocd_betas_area.png',
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'beta_ocd', format = 'draws_df') %>%
+fit_area$draws(variables = 'beta_ocd', format = 'draws_df') %>%
   
   mutate(across(starts_with('beta_ocd'), exp)) %>%
   
@@ -125,7 +143,7 @@ png(file = 'eos_betas_area.png',
       units = 'cm',
       res = 200)
 
-fit$draws(variables = 'beta_eos', format = 'draws_df') %>%
+fit_area$draws(variables = 'beta_eos', format = 'draws_df') %>%
   
     mutate(across(starts_with('beta_eos'), exp)) %>%
     
@@ -147,7 +165,7 @@ png(file = 'female_betas_area.png',
       units = 'cm',
       res = 200)
   
-  fit$draws(variables = 'beta_female', format = 'draws_df') %>%
+  fit_area$draws(variables = 'beta_female', format = 'draws_df') %>%
     
     mutate(across(starts_with('beta_female'), exp)) %>%
     
@@ -170,7 +188,7 @@ png(file = 'age_betas_area.png',
       units = 'cm',
       res = 200)
   
-  fit$draws(variables = 'beta_age', format = 'draws_df') %>%
+  fit_area$draws(variables = 'beta_age', format = 'draws_df') %>%
     
     mutate(across(starts_with('beta_age'), exp)) %>%
     
@@ -197,16 +215,40 @@ png(file = 'age_betas_area.png',
   ppd <- 
   
   bind_rows(
-    fit$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
-    fit$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
-    fit$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
+    fit_area$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
+    fit_area$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
+    fit_area$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
     .id = 'dx') %>%
     
   select(!c(.chain, .iteration, .draw)) %>%
   
   mutate(Diagnosis = fct_recode(as_factor(dx), OCD = '1', Control = '2', EOS = '3'), .keep = 'unused') %>%
   
-  pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'volume')
+  pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'area') %>%
+  
+  mutate(area = area/100)
+  
+  ppd_generated <- m$generate_quantities(fitted_params = fit_area, 
+                                         data = '~/mrs_data/area.json')
+  
+  ppd <- 
+  
+  bind_rows(
+    ppd_generated$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
+    ppd_generated$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
+    ppd_generated$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
+    .id = 'dx') %>%
+    
+  select(!c(.chain, .iteration, .draw)) %>%
+    
+  mutate(Diagnosis = fct_recode(as_factor(dx), OCD = '1', Control = '2', EOS = '3'), .keep = 'unused') %>%
+    
+  pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'area') %>%
+    
+  mutate(area = area/100) %>%
+  
+  bind_rows(ppd) 
+  
 
 png(file = 'ppd_area.png',
   width = 30,
@@ -214,17 +256,41 @@ png(file = 'ppd_area.png',
   units = 'cm',
   res = 400)
 
-ggplot(data = ppd, aes(x = Diagnosis, y = volume,
+ggplot(data = ppd, aes(x = Diagnosis, y = area,
                        fill = Diagnosis)) + 
   geom_violin(alpha = .4,
               draw_quantiles = c(.05, .5, .95)) + 
   viridis::scale_fill_viridis(discrete = TRUE) +
   labs(title = 'Posterior predictive distributions of cortical lobe areas', 
        x = NULL,
-       y = 'Measurements in square millimeters') + 
+       y = 'Measurements in square centimeters') + 
   theme(legend.position = 'none') + 
   facet_wrap(vars(structure), scales = 'free')
 
 dev.off()
 
-setwd('~/mrs')
+# writing posterior summary to file
+
+prob_increase <- function(x) {length(which(x>1))/length(x)}
+prob_decrease <- function(x) {length(which(x<1))/length(x)}
+
+estimates <- fit_area$draws(format = 'draws_df') %>%
+  
+  select(starts_with('beta_'), starts_with('sigma'), starts_with('mu')) %>%
+  
+  mutate(across(everything(), exp)) %>%
+  
+  summarise_draws(mean, sd, quantile2, 
+                  prob_increase, prob_decrease, 
+                  ess_bulk, ess_tail, rhat) %>%
+  
+  mutate(across(!variable, \(x) round(x, digits = 2))) %>%
+  
+  mutate(variable = str_replace_all(variable, 
+                                    c('\\[1\\]' = '_frontal',
+                                      '\\[2\\]' = '_parietal',
+                                      '\\[3\\]' = '_temporal',
+                                      '\\[4\\]' = '_occipital',
+                                      '\\[5\\]' = '_cingulate')))
+
+write_csv(estimates, file = '~/mrs/area_estimates.csv')

@@ -81,7 +81,7 @@ model{
 // and is supplied as data, to allow for modeling of thickness, volume and area
 // with same code
   sigma ~ normal(0, 1);
-  
+
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
              age .* beta_age[ind_str] + female .* beta_female[ind_str] +

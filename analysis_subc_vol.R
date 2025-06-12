@@ -5,11 +5,11 @@ options(posterior.digits = 2,
 
 m <- cmdstan_model('~/mrs/mod_mrs.stan')
 
-fit <- m$sample(data = '~/mrs_data/volume.json', 
+fit_volume <- m$sample(data = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/volume.json', 
                 iter_sampling = 1000,
                 sig_figs = 9)
 
-fit$cmdstan_diagnose()
+fit_volume$cmdstan_diagnose()
 
 # inspect sampling with pairs plots
 
@@ -21,7 +21,7 @@ png(file = 'pairs_hyper.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars(beta_icv, sigma_alpha_id,
+mcmc_pairs(fit_volume$draws(), pars = vars(beta_icv, sigma_alpha_id,
                                     sigma_alpha_str, sigma_beta_age,
                                     sigma_beta_gender, sigma_beta_ocd,
                                     sigma_beta_eos,
@@ -36,7 +36,7 @@ png(file = 'pairs_icpt.png',
     units = 'cm',
     res = 100)
 
-mcmc_pairs(fit$draws(), pars = vars('beta_icv', 'sigma_alpha_id', starts_with('alpha_str_raw'), 
+mcmc_pairs(fit_volume$draws(), pars = vars('beta_icv', 'sigma_alpha_id', starts_with('alpha_str_raw'), 
                                     'alpha_id[10]', 'alpha_id[15]', 'alpha_id[30]'))
 
 dev.off()
@@ -47,7 +47,7 @@ bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
 
 d <- read_rds('~/mrs_data/volume_plot.rds')
 
-ppc_draws <- fit$draws(variables = 'ppc', format = 'draws_matrix')
+ppc_draws <- fit_volume$draws(variables = 'ppc', format = 'draws_matrix')
 
 png(file = 'violin_ppc_volume.png',
     width = 30,
@@ -77,7 +77,7 @@ dev.off()
 
 # loo-pit plot
 
-loo_volume <- fit$loo(moment_match = TRUE, 
+loo_volume <- fit_volume$loo(moment_match = TRUE, 
                       save_psis = TRUE)
 
 write_rds(loo_volume, file = '~/mrs/loo_volume.rds')
@@ -101,7 +101,7 @@ png(file = 'ocd_betas_volume.png',
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'beta_ocd', format = 'draws_df') %>%
+fit_volume$draws(variables = 'beta_ocd', format = 'draws_df') %>%
   
   mutate(across(starts_with('beta_ocd'), exp)) %>%
   
@@ -126,7 +126,7 @@ png(file = 'eos_betas_volume.png',
       units = 'cm',
       res = 200)
 
-fit$draws(variables = 'beta_eos', format = 'draws_df') %>%
+fit_volume$draws(variables = 'beta_eos', format = 'draws_df') %>%
   
     mutate(across(starts_with('beta_eos'), exp)) %>%
     
@@ -151,7 +151,7 @@ png(file = 'female_betas_volume.png',
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'beta_female', format = 'draws_df') %>%
+fit_volume$draws(variables = 'beta_female', format = 'draws_df') %>%
   
   mutate(across(starts_with('beta_female'), exp)) %>%
   
@@ -177,7 +177,7 @@ png(file = 'age_betas_volume.png',
     units = 'cm',
     res = 200)
 
-fit$draws(variables = 'beta_age', format = 'draws_df') %>%
+fit_volume$draws(variables = 'beta_age', format = 'draws_df') %>%
   
   mutate(across(starts_with('beta_age'), exp)) %>%
   
@@ -202,9 +202,9 @@ str_names <- levels(fct_recode(d$str_name, 'Accumbens (area)' = 'Accumbens.area'
 ppd <- 
   
   bind_rows(
-    fit$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
-    fit$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
-    fit$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
+    fit_volume$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
+    fit_volume$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
+    fit_volume$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
     .id = 'dx') %>%
   
   select(!c(.chain, .iteration, .draw)) %>%
@@ -212,6 +212,29 @@ ppd <-
   mutate(Diagnosis = fct_recode(as_factor(dx),  OCD = '1', Control = '2', EOS = '3'), .keep = 'unused') %>%
   
   pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'volume')
+
+ppd_generated <- m$generate_quantities(fitted_params = fit_volume, 
+                                       data = '~/mrs_data/volume.json')
+ppd <- 
+  
+  bind_rows(
+    ppd_generated$draws(variables = 'ppd_ocd', format = 'draws_df') %>% set_variables(str_names),
+    ppd_generated$draws(variables = 'ppd_ctr', format = 'draws_df') %>% set_variables(str_names),
+    ppd_generated$draws(variables = 'ppd_eos', format = 'draws_df') %>% set_variables(str_names),
+    .id = 'dx') %>%
+  
+  select(!c(.chain, .iteration, .draw)) %>%
+  
+  mutate(Diagnosis = fct_recode(as_factor(dx), OCD = '1', Control = '2', EOS = '3'), .keep = 'unused') %>%
+  
+  pivot_longer(!Diagnosis, names_to = 'structure', values_to = 'volume') %>%
+  
+  bind_rows(ppd)
+
+ppd <- bind_rows(
+  
+  mutate(filter(ppd, structure != 'Accumbens (area)'), volume = volume/1000),
+  mutate(filter(ppd, structure == 'Accumbens (area)'), volume = volume/100))
 
 png(file = 'ppd_volume.png',
   width = 30,
@@ -226,10 +249,38 @@ ggplot(data = ppd, aes(y = volume, x = Diagnosis)) +
   viridis::scale_fill_viridis(discrete = TRUE) +
   labs(title = 'Posterior predictive distributions across subcortical structures', 
        x = NULL,
-       y = 'Measurements in cubic/square millimeters') + 
+       y = 'Measurements in cubic/square cm') + 
   theme(legend.position = 'none') + 
   facet_wrap(vars(structure), scales = 'free')
 
 dev.off()
 
-setwd('~/mrs')
+# writing posterior summary to file
+
+prob_increase <- function(x) {length(which(x>1))/length(x)}
+prob_decrease <- function(x) {length(which(x<1))/length(x)}
+
+estimates <- fit_volume$draws(format = 'draws_df') %>%
+  
+  select(starts_with('beta_'), starts_with('sigma'), starts_with('mu')) %>%
+  
+  mutate(across(everything(), exp)) %>%
+  
+  summarise_draws(mean, sd, quantile2, 
+                  prob_increase, prob_decrease, 
+                  ess_bulk, ess_tail, rhat) %>%
+  
+  mutate(across(!variable, \(x) round(x, digits = 2))) %>%
+  
+  mutate(variable = str_replace_all(variable, 
+                                    c('\\[1\\]' = '_amygdala',
+                                      '\\[2\\]' = '_hippocampus',
+                                      '\\[3\\]' = '_accumbens',
+                                      '\\[4\\]' = '_putamen',
+                                      '\\[5\\]' = '_lat_ventricle',
+                                      '\\[6\\]' = '_pallidum',
+                                      '\\[7\\]' = '_caudate',
+                                      '\\[8\\]' = '_thalamus')))
+
+write_csv(estimates, file = '~/mrs/volume_estimates.csv')
+

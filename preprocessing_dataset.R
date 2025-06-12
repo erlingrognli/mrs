@@ -14,7 +14,7 @@ outlier_removal <- function(x, k){
 
 # load demographic info on ocd participants
 
-ocd_demog <- read.csv2('~/mrs_data/mrs_pasienter_demog.csv')
+ocd_demog <- read.csv2('R:/Prosjekter_VVHF/MRS_1000368/mrs_data/mrs_pasienter_demog.csv')
 
 # remove excluded participants and irrelevant variables
 # and fix "ok" text in subject ids.
@@ -35,7 +35,7 @@ ocd_demog <- mutate(ocd_demog,
 
 # load demographic info on healthy controls
 
-hc_demog <- read.csv2('~/mrs_data/mrs_kontroller_demog.csv')
+hc_demog <- read.csv2('R:/Prosjekter_VVHF/MRS_1000368/mrs_data/mrs_kontroller_demog.csv')
 
 # remove irrelevant variables and recode/rename
 # combine with ocd participants
@@ -54,7 +54,7 @@ demog <- rbind(hc_demog, ocd_demog)
 # load mri dates, reformat, calculate age in days, 
 # and convert to years with two decimals to comply with format of ytop data
 
-demog <- right_join(demog, read.csv('~/mrs_data/studyDate.csv'), 
+demog <- right_join(demog, read.csv('R:/Prosjekter_VVHF/MRS_1000368/mrs_data/studyDate.csv'), 
                     by = join_by(SubjID == SubjID)) %>%
   
   mutate(study_date = as.Date(as.character(StudyDate), format = '%Y%m%d'),
@@ -63,7 +63,7 @@ demog <- right_join(demog, read.csv('~/mrs_data/studyDate.csv'),
 
 # read in processed mri data, adding 
 
-ocd_ytop <- read.csv('~/mrs_data/OCD_YTOP_data.csv')
+ocd_ytop <- read.csv('R:/Prosjekter_VVHF/MRS_1000368/mrs_data/OCD_YTOP_data.csv')
 
 ocd_ytop <- 
   
@@ -117,7 +117,7 @@ ocd_ytop <-
 
 # write processed data to csv file for outlier analysis etc
 
-write_csv(ocd_ytop, file = '~/mrs_data/ocd_ytop_processed.csv')
+write_csv(ocd_ytop, file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/ocd_ytop_processed.csv', col_names = TRUE)
   
 # mark outliers by changing observations deviating more than 4 MAD to NA
   
@@ -164,7 +164,7 @@ dev.off()
 # save datafile for stan model in json format
 
 cmdstanr::write_stan_json(
-  file = '~/mrs_data/volume.json',
+  file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/volume.json',
   data = list(
     N = length(unique(d_v$id)),
     n_obs = nrow(d_v),
@@ -181,8 +181,8 @@ cmdstanr::write_stan_json(
 
 # save data for plotting functions
 
-write_rds(file = '~/mrs_data/volume_plot.rds',
-          select(d_v, id, mri, str_name))
+write_rds(file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/volume_plot.rds',
+          select(d_v, id, mri, str_name, ocd, eos))
 
 # cortical areas
   
@@ -218,7 +218,7 @@ dev.off()
 # save datafile for stan model in json format
 
 cmdstanr::write_stan_json(
-  file = '~/mrs_data/area.json',
+  file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/area.json',
   data = list(
     N = length(unique(d_a$id)),
     n_obs = nrow(d_a),
@@ -235,8 +235,8 @@ cmdstanr::write_stan_json(
 
 # save data for plotting functions
 
-write_rds(file = '~/mrs_data/area_plot.rds',
-          select(d_a, id, mri, str_name))
+write_rds(file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/area_plot.rds',
+          select(d_a, id, mri, str_name, ocd, eos))
 
 # cortical thickness
 
@@ -273,7 +273,7 @@ dev.off()
 # save datafile for stan model in json format
 
 cmdstanr::write_stan_json(
-  file = '~/mrs_data/thickness.json',
+  file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/thickness.json',
   data = list(
     N = length(unique(d_t$id)),
     n_obs = nrow(d_t),
@@ -290,6 +290,6 @@ cmdstanr::write_stan_json(
 
 # save data for plotting functions
 
-write_rds(file = '~/mrs_data/thickness_plot.rds',
-          select(d_t, id, mri, str_name))
+write_rds(file = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/thickness_plot.rds',
+          select(d_t, id, mri, str_name, ocd, eos))
 
