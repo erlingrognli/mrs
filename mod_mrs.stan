@@ -65,7 +65,7 @@ model{
   mu_beta_eos ~ normal(0, .5);
 // hyperpriors encode an assumption that the average multiplicative effect of 
 // 0-1 scaled age, gender, ocd and z-score icv across structures 
-// are between .44 and 2.22 with 95% certainty
+// are between .37 and 2.66 with 95% certainty
  
 // priors
   alpha_str ~ normal(0, sigma_alpha_str * sigma_alpha_str_multiplier);

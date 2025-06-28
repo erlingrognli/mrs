@@ -7,6 +7,72 @@ Ivarsson & Ingrid Agartz
 
 ## Prior distributions in the model
 
+We generally use weakly informative priors in this model. These are
+priors that rule out a priori implausible regions of the parameter
+space, but that otherwise are quite wide and not informative about
+directions of effects or such. The model is also specified with
+hierarchical priors on the effects of EOS, OCD, age and female gender.
+The coefficients for the various brain regions are given a joint normal
+prior, with the mean and variance of those priors constituting
+hyperparameters of the model. These are in turn given priors
+(hyperpriors). The advantage of this is that even though we may not have
+prior knowledge of the direction and magnitude of effects per region, we
+can usually say something about a reasonable range of effect sizes.
+
+### Priors on regression coefficients
+
+For the means of the coefficients for EOS, OCD, age and female gender
+across brain structures, we set normal priors with a mean of 0 and
+standard deviation of 0.5. This encodes an assumption that the average
+multiplicative effect of these variables on cortical area or subcortical
+volume is between .37 and 2.66 with 95% certainty, and that the most
+likely average multiplicative effect is 1 (i.e. no effect at all).
+
+For the standard deviations of the coefficients for EOS, OCD, age and
+female gender across brain structures we set a lognormal prior with mean
+-1 and standard deviation 1. This encodes an assumption that the average
+multiplicative deviation of effects across structures is not likely to
+be zero, but not larger than 7 - which is hardly a strong assumption.
+
+### Priors on participant random effects and intracranial volume
+
+As the model contains measurements across the hemispheres nested within
+structures, then nested within participants, we need to model subject
+level random effects. At the same time, intracranial volume is often
+used to adjust analyses, to account for differences in brain region size
+due to differences in head size alone. We therefore regress the
+participant random effects on standardized intracranial volume, in
+practice informing the random effects per participant by the
+measurements of intracranial volume, while allowing the error
+distribution of the regression to capture the rest of the distribution
+of participant random effects. We set a Normal(0, 0.5) distribution on
+the regression coefficient and a Half-normal(0, .25) distribution on the
+errors. The latter implies an assumption that the average multiplicative
+deviation from the expectation for a subject random effect, conditional
+on intracranial volume is within 1.6.
+
+### Priors on brain region random effects
+
+We also need to model the differences between brain regions. The model
+has an overall intercept, and the regionwise random effects are then
+given a sum-to-zero constraint, to avoid unidentifiability. The overall
+intercept is scaled differently for area and volume. We set a quite wide
+prior on the regionwise random effects, with a Half-Normal(0, .8)
+distribution. This assumes that the average multiplicative deviation
+from the overall intercept is within 5. A multiplier is also applied to
+the variance of these, due to the sum-to-zero constraint (as shown in
+code by Sean Pinkney, with reference to “Fraser, D. A. S. (1951). Normal
+Samples With Linear Constraints and Given Variances. Canadian Journal of
+Mathematics, 3, 363–366. <doi:10.4153/CJM-1951-041-9>”.)
+
+### Error distributions
+
+The model is fitted with separate error variances for each structure.
+These are all given Half-Normal(0,1) priors, assuming that its unlikely
+that any observation will be more than 7 times larger or smaller than
+predicted, which is again not a particularly strong assumption given the
+overall model.
+
 ## Posterior predictive checking
 
 To evaluate model fit, we can use posterior predictive checking. If the
@@ -34,7 +100,7 @@ As is evident from the plots, the model fits reasonably well.
 
 Another form of posterior predictive checking available in *bayesplot*
 is the loo-pit plot. This uses approximate leave-one-out
-cross-validation (through the excellent *loo* package) and the
+cross-validation (through the very convenient *loo* package) and the
 probability integral transform, calculating the cumulative probability
 density of each observation when left out of fitting the model. With a
 calibrated model, these follow a uniform distribution between 0 and 1
