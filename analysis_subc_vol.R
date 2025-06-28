@@ -45,7 +45,7 @@ dev.off()
 
 bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
 
-d <- read_rds('~/mrs_data/volume_plot.rds')
+d <- read_rds('R:/Prosjekter_VVHF/MRS_1000368/mrs_data/volume_plot.rds')
 
 ppc_draws <- fit_volume$draws(variables = 'ppc', format = 'draws_matrix')
 
@@ -58,7 +58,7 @@ png(file = 'violin_ppc_volume.png',
 ppc_violin_grouped(y = log(d$mri), 
                    yrep = ppc_draws, 
                    group = d$str_name,
-                   y_draw = 'violin') +
+                   y_draw = 'both') +
   labs(title = 'Posterior predictive plot')
 
 dev.off()

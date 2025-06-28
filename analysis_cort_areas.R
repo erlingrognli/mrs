@@ -3,7 +3,7 @@ library(cmdstanr); library(tidyverse); library(ggplot2); library(bayesplot); lib
 options(posterior.digits = 2,
         mc.cores = 4)
 
-m <- cmdstan_model('~/mrs/mod_mrs.stan', compile_model_methods = TRUE)
+m <- cmdstan_model('~/mrs/mod_mrs.stan', force_recompile = TRUE, compile_model_methods = TRUE)
 
 fit_area <- m$sample(data = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/area.json', iter_sampling = 1000, sig_figs = 9)
 
@@ -63,7 +63,7 @@ write.csv(estimates, file = '~/mrs/area_estimates.csv')
 
 bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
 
-d <- read_rds('~/mrs_data/area_plot.rds')
+d <- read_rds('R:/Prosjekter_VVHF/MRS_1000368/mrs_data/area_plot.rds')
 
 ppc_draws <- fit_area$draws(variables = 'ppc', format = 'draws_matrix')
 
@@ -76,7 +76,7 @@ png(file = 'violin_ppc_area.png',
 ppc_violin_grouped(y = log(d$mri), 
                    yrep = ppc_draws, 
                    group = d$str_name,
-                   y_draw = 'violin') +
+                   y_draw = 'both') +
   labs(title = 'Posterior predictive plot')
 
 dev.off()
@@ -96,7 +96,7 @@ dev.off()
 
 # diagnostics using loo and loo-pit-plot
 
-loo_area <- fit_area$loo(moment_match = TRUE, 
+loo_area <- fit_area$loo(#moment_match = TRUE, 
                     save_psis = TRUE)
 
 write_rds(loo_area, file = '~/mrs/loo_area.rds')
