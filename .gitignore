@@ -3,6 +3,5 @@
 .RData
 .Ruserdata
 *.exe
-*.png
 *.rds
 *.csv

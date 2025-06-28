@@ -24,12 +24,11 @@ Here we have made violin plots for this purpose, using the excellent
 4000 draws of the outcome variable predicted by the model, while the
 dots and the violin is the observed distribution. We plot the various
 brain regions separately. Note that the scale on the y-axis is the log
-of the cortical area.
-![](C:/Users/erlrog/Documents/mrs/plots/area/violin_ppc_area.png)
+of the cortical area. ![](plots/area/violin_ppc_area.png)
 
 And similarly, we make the same type of plot for subcortical volumes:
 
-![](C:/Users/erlrog/Documents/mrs/plots/volume/violin_ppc_volume.png)
+![](plots/volume/violin_ppc_volume.png)
 
 As is evident from the plots, the model fits reasonably well.
 
