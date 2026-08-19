@@ -286,7 +286,7 @@ cmdstanr::write_stan_json(
     female = d_t$female,
     ocd = d_t$ocd,
     eos = d_t$eos,
-    alpha_params = c(.9, .2)))
+    alpha_params = c(.9, .25)))
 
 # save data for plotting functions
 

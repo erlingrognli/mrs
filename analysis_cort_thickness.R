@@ -3,10 +3,10 @@ library(cmdstanr); library(tidyverse); library(ggplot2); library(bayesplot); lib
 options(posterior.num_args = list(digits = 2),
         mc.cores = 4)
 
-# m <- cmdstan_model('~/mrs/mod_mrs.stan')
-# 
-# fit_thickness <- m$sample(data = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/thickness.json',
-#                 sig_figs = 9)
+# m <- cmdstan_model('~/mrs/mod_mrs.stan', compile = TRUE)
+ 
+fit_thickness <- m$sample(data = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/thickness.json',
+                 sig_figs = 9)
 
 fit_thickness <- read_rds('fit_thickness.rds')
 
@@ -70,7 +70,7 @@ png(file = 'violin_ppc_thickness_diagn.png',
 
 ppc_violin_grouped(y = log(d$mri), 
                    yrep = ppc_draws, 
-                   group = d$diagnosis,
+                   group = ifelse(d$ocd == 1, 'OCD', ifelse(d$eos == 1, 'EOS', 'Control')),
                    y_draw = 'violin') +
   labs(title = 'Posterior predictive plot') 
   
@@ -93,7 +93,7 @@ dev.off()
 loo_thickness <- fit_thickness$loo(moment_match = TRUE,
                                   save_psis = TRUE)
 
-write_rds(loo_thickness, file = '~/mrs/loo_thickness.rds')
+saveRDS(loo_thickness, file = '~/mrs/loo_thickness.rds')
 
 png(file = 'loo_pit_thickness.png',
     width = 12,
@@ -270,9 +270,11 @@ estimates <- fit_thickness$draws(format = 'draws_df') %>%
   
   mutate(across(everything(), exp)) %>%
   
-  summarise_draws(mean, sd, quantile2, 
-                  prob_increase, prob_decrease, 
-                  ess_bulk, ess_tail, rhat) %>%
+  summarise_draws(
+    mean, sd,
+    ~quantile2(.x, probs = c(0.025, 0.975, 0.05, 0.95)),
+    prob_increase, prob_decrease,
+    ess_bulk, ess_tail, rhat) %>%
   
   mutate(across(!variable, \(x) round(x, digits = 2))) %>%
   
@@ -284,3 +286,42 @@ estimates <- fit_thickness$draws(format = 'draws_df') %>%
                                       '\\[5\\]' = '_cingulate')))
 
 write_csv(estimates, file = '~/mrs/thickness_estimates.csv')
+
+contrast_estimates <- fit_thickness$draws(format = "draws_df") %>%
+  
+  select(starts_with("beta_")) %>%
+  
+  mutate(
+    across(
+      starts_with("beta_eos"),
+      ~ .x - get(str_replace(cur_column(), "beta_eos", "beta_ocd")),
+      .names = "contrast_{str_replace(.col, 'beta_eos_', '')}"
+    )
+  ) %>%
+  
+  select(starts_with("contrast_")) %>%
+  
+  mutate(across(everything(), exp)) %>%
+  
+  summarise_draws(
+    mean, sd,
+    ~quantile2(.x, probs = c(0.025, 0.975, 0.05, 0.95)),
+    prob_increase, prob_decrease,
+    ess_bulk, ess_tail, rhat
+  ) %>%
+  
+  mutate(across(!variable, \(x) round(x, 2))) %>%
+  
+  mutate(variable = str_replace_all(variable, 
+                                    c('\\[1\\]' = '_frontal',
+                                      '\\[2\\]' = '_parietal',
+                                      '\\[3\\]' = '_temporal',
+                                      '\\[4\\]' = '_occipital',
+                                      '\\[5\\]' = '_cingulate')))
+
+write_csv(contrast_estimates, file = '~/mrs/thickness_contrast_estimates.csv')
+
+
+setwd('~/mrs')
+
+saveRDS(fit_thickness, 'fit_thickness.rds')

@@ -41,24 +41,6 @@ mcmc_pairs(fit_area$draws(), pars = vars('alpha', 'beta_icv', 'sigma_alpha_id', 
 
 dev.off()
 
-estimates <- fit_area$draws(format = 'draws_df') %>%
-  
-  select(starts_with('beta_'), starts_with('sigma'), starts_with('mu')) %>%
-  
-  mutate(across(everything(), exp)) %>%
-  
-  summarise_draws(.num_args = list(digits = 2)) %>%
-  
-  mutate(variable = str_replace_all(variable, 
-                                    c('\\[1\\]' = '_frontal',
-                                      '\\[2\\]' = '_parietal',
-                                      '\\[3\\]' = '_temporal',
-                                      '\\[4\\]' = '_occipital',
-                                      '\\[5\\]' = '_cingulate')))
-
-write.csv(estimates, file = '~/mrs/area_estimates.csv')
-
-
 # graphical posterior predictive checking
 
 bayesplot_theme_update(axis.text.x = element_text(angle = 90, hjust = 1))
@@ -96,7 +78,7 @@ dev.off()
 
 # diagnostics using loo and loo-pit-plot
 
-loo_area <- fit_area$loo(#moment_match = TRUE, 
+loo_area <- fit_area$loo(moment_match = TRUE, 
                     save_psis = TRUE)
 
 write_rds(loo_area, file = '~/mrs/loo_area.rds')
@@ -229,7 +211,7 @@ png(file = 'age_betas_area.png',
   mutate(area = area/100)
   
   ppd_generated <- m$generate_quantities(fitted_params = fit_area, 
-                                         data = '~/mrs_data/area.json')
+                                         data = 'R:/Prosjekter_VVHF/MRS_1000368/mrs_data/area.json')
   
   ppd <- 
   
@@ -294,3 +276,46 @@ estimates <- fit_area$draws(format = 'draws_df') %>%
                                       '\\[5\\]' = '_cingulate')))
 
 write_csv(estimates, file = '~/mrs/area_estimates.csv')
+
+contrast_estimates <- fit_area$draws(format = "draws_df") %>%
+  
+  # Keep only beta parameters
+  select(starts_with("beta_")) %>%
+  
+  # Compute contrasts on log scale
+  mutate(
+    across(
+      starts_with("beta_eos"),
+      ~ .x - get(str_replace(cur_column(), "beta_eos", "beta_ocd")),
+      .names = "contrast_{str_replace(.col, 'beta_eos_', '')}"
+    )
+  ) %>%
+  
+  # Keep only contrasts
+  select(starts_with("contrast_")) %>%
+  
+  # NOW exponentiate (if desired)
+  mutate(across(everything(), exp)) %>%
+  
+  # Summarise
+  summarise_draws(
+    mean, sd,
+    ~quantile2(.x, probs = c(0.025, 0.975, 0.05, 0.95)),
+    prob_increase, prob_decrease,
+    ess_bulk, ess_tail, rhat
+  ) %>%
+  
+  mutate(across(!variable, \(x) round(x, 2))) %>%
+  
+  mutate(variable = str_replace_all(variable, 
+                                    c('\\[1\\]' = '_frontal',
+                                      '\\[2\\]' = '_parietal',
+                                      '\\[3\\]' = '_temporal',
+                                      '\\[4\\]' = '_occipital',
+                                      '\\[5\\]' = '_cingulate')))
+
+write_csv(contrast_estimates, file = 'C:/Users/erlrog/OneDrive - Helse Sør-Øst/VVHF-FP-MRS-1000368 - Dokumenter/General/parameter_estimates/area_contrast_estimates.csv')
+
+
+
+setwd('~/mrs')

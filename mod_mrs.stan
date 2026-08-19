@@ -51,12 +51,12 @@ model{
   sigma_alpha_str ~ normal(0, .8);
 // assuming that the average multiplicative deviation from the mean for the
 // intercepts for each structure is within 5
-  sigma_beta_age ~ lognormal(-1, 1);
-  sigma_beta_female ~ lognormal(-1, 1);
-  sigma_beta_ocd ~ lognormal(-1, 1);
-  sigma_beta_eos ~ lognormal(-1, 1);
+  sigma_beta_age ~ lognormal(-2, .75);
+  sigma_beta_female ~ lognormal(-2, .75);
+  sigma_beta_ocd ~ lognormal(-2, .75);
+  sigma_beta_eos ~ lognormal(-2, .75);
 // assuming that the average multiplicative deviation of effects for 
-// age, female gender, ocd and eos acroiss structures is not zero and within 7
+// age, female gender, ocd and eos across structures is not zero and within 4
   
   beta_icv ~ normal(0, .5);
   mu_beta_age ~ normal(0, .5);
@@ -80,7 +80,7 @@ model{
 // overall intercept scales the rest of the model parameters, as they are multiplicative
 // and is supplied as data, to allow for modeling of thickness, volume and area
 // with same code
-  sigma ~ normal(0, 1);
+  sigma ~ student_t(4,0,1);
 
   mri_pred = alpha + alpha_str[ind_str] + alpha_id[ind_id] +
   
